@@ -18,13 +18,21 @@ import {
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
+
   { name: "Live Alerts", href: "/alerts", icon: AlertTriangle },
+
   { name: "Driver Management", href: "/drivers", icon: Users },
+
   { name: "Fleet Management", href: "/fleet", icon: Bus },
+
   { name: "Route Monitoring", href: "/routes", icon: MapPin },
+
   { name: "Reports & Analytics", href: "/reports", icon: FileText },
+
   { name: "Performance Analytics", href: "/analytics", icon: BarChart3 },
+
   { name: "Compliance", href: "/compliance", icon: Shield },
+  
   { name: "System Settings", href: "/settings", icon: Settings },
 ]
 
