@@ -1,14 +1,27 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import dynamic from "next/dynamic"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { HardwareScene } from "@/components/3d/hardware-scene"
 import { HardwareComparison } from "@/components/hardware-comparison"
 import { PerformanceSimulator } from "@/components/performance-simulator"
+
+// Dynamically import 3D components with SSR disabled (WebGL requires browser)
+const HardwareScene = dynamic(() => import("@/components/3d/hardware-scene").then(mod => ({ default: mod.HardwareScene })), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[600px] flex items-center justify-center bg-gray-100 rounded-lg">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading 3D hardware scene...</p>
+      </div>
+    </div>
+  ),
+})
 import {
   Camera,
   Cpu,

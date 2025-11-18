@@ -1,13 +1,26 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ThreeDMap } from "@/components/3d-map"
 import { AdvancedMap } from "@/components/advanced-map"
 import { Plus, Map, Box, BarChart3, Settings, AlertTriangle, MapPin, TrendingUp, Eye, Edit, Trash2 } from "lucide-react"
+
+// Dynamically import 3D map component with SSR disabled (WebGL requires browser)
+const ThreeDMap = dynamic(() => import("@/components/3d-map").then(mod => ({ default: mod.ThreeDMap })), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[600px] flex items-center justify-center bg-gray-100 rounded-lg">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading 3D map...</p>
+      </div>
+    </div>
+  ),
+})
 
 // Mock geofence data
 const mockGeofences = [
@@ -153,10 +166,10 @@ export default function GeofencesPage() {
         {/* Map Visualization */}
         <div className="lg:col-span-2">
           <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>Geofence Visualization</CardTitle>
-                <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+            <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Geofence Visualization</CardTitle>
                   <TabsList>
                     <TabsTrigger value="2d-map" className="gap-2">
                       <Map className="h-4 w-4" />
@@ -167,17 +180,17 @@ export default function GeofencesPage() {
                       3D View
                     </TabsTrigger>
                   </TabsList>
-                </Tabs>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <TabsContent value="2d-map" className="m-0">
-                <AdvancedMap />
-              </TabsContent>
-              <TabsContent value="3d-map" className="m-0">
-                <ThreeDMap />
-              </TabsContent>
-            </CardContent>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <TabsContent value="2d-map" className="m-0">
+                  <AdvancedMap />
+                </TabsContent>
+                <TabsContent value="3d-map" className="m-0">
+                  <ThreeDMap />
+                </TabsContent>
+              </CardContent>
+            </Tabs>
           </Card>
         </div>
 

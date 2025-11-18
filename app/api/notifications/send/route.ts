@@ -1,15 +1,37 @@
 import { type NextRequest, NextResponse } from "next/server"
 import webpush from "web-push"
 
-// Configure web-push with your VAPID keys
-webpush.setVapidDetails(
-  "mailto:your-email@example.com",
-  process.env.VAPID_PUBLIC_KEY || "your-vapid-public-key",
-  process.env.VAPID_PRIVATE_KEY || "your-vapid-private-key",
-)
+// Configure web-push with your VAPID keys (only if valid keys are provided)
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY
+const vapidEmail = process.env.VAPID_EMAIL || "mailto:your-email@example.com"
+
+// Only set VAPID details if valid keys are provided (not placeholder values)
+if (vapidPublicKey && vapidPrivateKey && 
+    vapidPublicKey !== "your-vapid-public-key" && 
+    vapidPrivateKey !== "your-vapid-private-key") {
+  try {
+    webpush.setVapidDetails(vapidEmail, vapidPublicKey, vapidPrivateKey)
+  } catch (error) {
+    console.warn("Failed to set VAPID details:", error)
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if VAPID keys are configured
+    if (!vapidPublicKey || !vapidPrivateKey || 
+        vapidPublicKey === "your-vapid-public-key" || 
+        vapidPrivateKey === "your-vapid-private-key") {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "VAPID keys are not configured. Please set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY environment variables." 
+        }, 
+        { status: 500 }
+      )
+    }
+
     const { subscriptions, payload, options = {} } = await request.json()
 
     if (!subscriptions || !Array.isArray(subscriptions)) {

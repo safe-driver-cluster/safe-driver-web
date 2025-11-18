@@ -1,5 +1,5 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { AdminHeader } from "@/components/admin-header"
@@ -7,6 +7,9 @@ import { AdminSidebar } from "@/components/admin-sidebar"
 import { MobileNav } from "@/components/mobile-nav"
 import { OfflineIndicator } from "@/components/offline-indicator"
 import { VoiceCommandButton } from "@/components/voice-command-button"
+import { Toaster } from "@/components/ui/toaster"
+import { FirebaseInitializer } from "@/components/firebase-initializer"
+import { ServiceWorkerRegister } from "@/components/service-worker-register"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -14,9 +17,24 @@ export const metadata: Metadata = {
   title: "SafeDriver Authority Panel",
   description: "Transport Safety Management System",
   manifest: "/manifest.json",
+  generator: 'v0.dev',
+  icons: {
+    icon: '/placeholder-logo.png',
+    apple: '/placeholder-logo.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "SafeDriver",
+  },
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   themeColor: "#3b82f6",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
-    generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -27,7 +45,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <link rel="icon" href="/placeholder-logo.png" />
+        <link rel="apple-touch-icon" href="/placeholder-logo.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="SafeDriver" />
@@ -55,26 +75,16 @@ export default function RootLayout({
 
           {/* Voice Command Button */}
           <VoiceCommandButton />
-        </div>
 
-        {/* Service Worker Registration */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js')
-                    .then(function(registration) {
-                      console.log('SW registered: ', registration);
-                    })
-                    .catch(function(registrationError) {
-                      console.log('SW registration failed: ', registrationError);
-                    });
-                });
-              }
-            `,
-          }}
-        />
+          {/* Toast Notifications */}
+          <Toaster />
+
+          {/* Firebase Initializer (client-side only) */}
+          <FirebaseInitializer />
+
+          {/* Service Worker Registration (client-side only) */}
+          <ServiceWorkerRegister />
+        </div>
       </body>
     </html>
   )

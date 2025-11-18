@@ -20,109 +20,85 @@ import {
   TrendingDown,
   Search,
   Eye,
+  Loader2,
 } from "lucide-react"
-
-// Mock route data
-const mockRoutes = [
-  {
-    id: "RT001",
-    name: "Colombo - Kandy Express",
-    startPoint: "Colombo Fort",
-    endPoint: "Kandy Central",
-    distance: 115,
-    estimatedTime: 180,
-    activeVehicles: 3,
-    totalStops: 12,
-    status: "active",
-    onTimePerformance: 92,
-    averageSpeed: 38,
-    passengerLoad: 85,
-    safetyIncidents: 2,
-    vehicles: ["NB-1234", "NB-5678", "NB-9012"],
-    stops: [
-      { name: "Colombo Fort", time: "06:00", status: "completed" },
-      { name: "Kadawatha", time: "06:25", status: "completed" },
-      { name: "Gampaha", time: "06:45", status: "current" },
-      { name: "Veyangoda", time: "07:05", status: "upcoming" },
-      { name: "Kandy Central", time: "09:00", status: "upcoming" },
-    ],
-  },
-  {
-    id: "RT002",
-    name: "Galle - Matara Coastal",
-    startPoint: "Galle Bus Stand",
-    endPoint: "Matara Central",
-    distance: 45,
-    estimatedTime: 75,
-    activeVehicles: 2,
-    totalStops: 8,
-    status: "active",
-    onTimePerformance: 88,
-    averageSpeed: 36,
-    passengerLoad: 70,
-    safetyIncidents: 1,
-    vehicles: ["WP-5678", "WP-3456"],
-    stops: [
-      { name: "Galle Bus Stand", time: "07:00", status: "completed" },
-      { name: "Hikkaduwa", time: "07:20", status: "completed" },
-      { name: "Ambalangoda", time: "07:40", status: "current" },
-      { name: "Matara Central", time: "08:15", status: "upcoming" },
-    ],
-  },
-  {
-    id: "RT003",
-    name: "Negombo - Colombo Airport",
-    startPoint: "Negombo Bus Stand",
-    endPoint: "Bandaranaike Airport",
-    distance: 25,
-    estimatedTime: 45,
-    activeVehicles: 4,
-    totalStops: 6,
-    status: "active",
-    onTimePerformance: 95,
-    averageSpeed: 33,
-    passengerLoad: 92,
-    safetyIncidents: 0,
-    vehicles: ["CP-9012", "CP-3456", "CP-7890", "CP-2345"],
-    stops: [
-      { name: "Negombo Bus Stand", time: "05:30", status: "completed" },
-      { name: "Ja-Ela", time: "05:45", status: "completed" },
-      { name: "Seeduwa", time: "06:00", status: "current" },
-      { name: "Bandaranaike Airport", time: "06:15", status: "upcoming" },
-    ],
-  },
-]
+import type { Route } from "@/lib/route-types"
+import { useToast } from "@/hooks/use-toast"
 
 export default function RouteMonitoring() {
-  const [routes, setRoutes] = useState(mockRoutes)
-  const [selectedRoute, setSelectedRoute] = useState(null)
+  const [routes, setRoutes] = useState<Route[]>([])
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    maintenance: 0,
+    totalVehicles: 0,
+    averageOnTimePerformance: 0,
+    totalSafetyIncidents: 0,
+  })
+  const [loading, setLoading] = useState(true)
+  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const { toast } = useToast()
 
-  // Real-time updates simulation
+  // Fetch routes
+  const fetchRoutes = async () => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams()
+      if (statusFilter !== "all") {
+        params.append("status", statusFilter)
+      }
+      if (searchTerm) {
+        params.append("search", searchTerm)
+      }
+
+      const response = await fetch(`/api/routes?${params.toString()}`)
+      if (!response.ok) throw new Error("Failed to fetch routes")
+      const data = await response.json()
+      setRoutes(data)
+    } catch (error) {
+      console.error("Error fetching routes:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load routes. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Fetch stats
+  const fetchStats = async () => {
+    try {
+      const response = await fetch("/api/routes/stats")
+      if (!response.ok) throw new Error("Failed to fetch stats")
+      const data = await response.json()
+      setStats(data)
+    } catch (error) {
+      console.error("Error fetching stats:", error)
+    }
+  }
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      setRoutes((prev) =>
-        prev.map((route) => ({
-          ...route,
-          onTimePerformance: Math.max(80, Math.min(100, route.onTimePerformance + (Math.random() - 0.5) * 2)),
-          passengerLoad: Math.max(40, Math.min(100, route.passengerLoad + (Math.random() - 0.5) * 5)),
-          averageSpeed: Math.max(25, Math.min(50, route.averageSpeed + (Math.random() - 0.5) * 3)),
-        })),
-      )
-    }, 8000)
-
-    return () => clearInterval(interval)
+    fetchRoutes()
+    fetchStats()
   }, [])
 
-  const filteredRoutes = routes.filter((route) => {
-    const matchesSearch =
-      route.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      route.startPoint.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      route.endPoint.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || route.status === statusFilter
-    return matchesSearch && matchesStatus
-  })
+  // Refetch when filters change
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchRoutes()
+    }, 300) // Debounce search
+
+    return () => clearTimeout(timeoutId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, statusFilter])
+
+  // Filter is now handled server-side
+  const filteredRoutes = routes
 
   const getPerformanceColor = (performance: number) => {
     if (performance >= 90) return "text-green-600"
@@ -151,8 +127,8 @@ export default function RouteMonitoring() {
             <Route className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{routes.filter((r) => r.status === "active").length}</div>
-            <p className="text-xs text-muted-foreground">Out of {routes.length} total routes</p>
+            <div className="text-2xl font-bold text-primary">{stats.active}</div>
+            <p className="text-xs text-muted-foreground">Out of {stats.total} total routes</p>
           </CardContent>
         </Card>
 
@@ -162,9 +138,7 @@ export default function RouteMonitoring() {
             <Bus className="h-4 w-4 text-tech-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-tech-600">
-              {routes.reduce((acc, route) => acc + route.activeVehicles, 0)}
-            </div>
+            <div className="text-2xl font-bold text-tech-600">{stats.totalVehicles}</div>
             <p className="text-xs text-muted-foreground">Currently operating</p>
           </CardContent>
         </Card>
@@ -175,9 +149,7 @@ export default function RouteMonitoring() {
             <Clock className="h-4 w-4 text-safety-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-safety-600">
-              {Math.round(routes.reduce((acc, route) => acc + route.onTimePerformance, 0) / routes.length)}%
-            </div>
+            <div className="text-2xl font-bold text-safety-600">{stats.averageOnTimePerformance}%</div>
             <p className="text-xs text-muted-foreground">Average across all routes</p>
           </CardContent>
         </Card>
@@ -188,9 +160,7 @@ export default function RouteMonitoring() {
             <AlertTriangle className="h-4 w-4 text-warning-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-warning-600">
-              {routes.reduce((acc, route) => acc + route.safetyIncidents, 0)}
-            </div>
+            <div className="text-2xl font-bold text-warning-600">{stats.totalSafetyIncidents}</div>
             <p className="text-xs text-muted-foreground">This week</p>
           </CardContent>
         </Card>
@@ -227,8 +197,25 @@ export default function RouteMonitoring() {
       </Card>
 
       {/* Routes Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {filteredRoutes.map((route) => (
+      {loading ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Loader2 className="h-12 w-12 text-gray-400 mx-auto mb-4 animate-spin" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Loading routes...</h3>
+            <p className="text-gray-600">Please wait while we fetch route data.</p>
+          </CardContent>
+        </Card>
+      ) : filteredRoutes.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Route className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No routes found</h3>
+            <p className="text-gray-600">No routes match your current filters.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {filteredRoutes.map((route) => (
           <Card key={route.id} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex justify-between items-start">
@@ -325,8 +312,9 @@ export default function RouteMonitoring() {
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Route Performance Analytics */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
