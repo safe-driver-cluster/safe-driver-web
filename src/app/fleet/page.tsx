@@ -707,7 +707,7 @@ export default function FleetManagement() {
                     <div className="space-y-4">
                       <div>
                         <Label htmlFor="busNumberPlate">
-                          BUS Number Plate <span className="text-red-500">*</span>
+                          Bus Number Plate <span className="text-red-500">*</span>
                         </Label>
                         <Input
                           id="busNumberPlate"
@@ -730,7 +730,7 @@ export default function FleetManagement() {
                         />
                         <p className="text-xs text-gray-500 mt-1">Format: NB-XXXX (e.g., NB-4565)</p>
                       </div>
-                      <div>
+                      {/* <div>
                         <Label htmlFor="documentId">Document ID (Number Plate)</Label>
                         <Input
                           id="documentId"
@@ -739,7 +739,7 @@ export default function FleetManagement() {
                           placeholder="e.g., ABC-1234"
                         />
                         <p className="text-xs text-gray-500 mt-1">Vehicle registration number / Number plate (optional)</p>
-                      </div>
+                      </div> */}
                       <div>
                         <Label htmlFor="deviceId">Device ID</Label>
                         <Input
@@ -1375,7 +1375,7 @@ export default function FleetManagement() {
             <div className="space-y-4 overflow-y-auto flex-1 pr-2">
               <div>
                 <Label htmlFor="edit-busNumberPlate">
-                  BUS Number Plate <span className="text-red-500">*</span>
+                  Bus Number Plate <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="edit-busNumberPlate"
@@ -1398,7 +1398,7 @@ export default function FleetManagement() {
                 />
                 <p className="text-xs text-gray-500 mt-1">Format: NB-XXXX (e.g., NB-4565)</p>
               </div>
-              <div>
+              {/* <div>
                 <Label htmlFor="edit-documentId">Document ID (Number Plate)</Label>
                 <Input
                   id="edit-documentId"
@@ -1407,7 +1407,7 @@ export default function FleetManagement() {
                   placeholder="e.g., ABC-1234"
                 />
                 <p className="text-xs text-gray-500 mt-1">Vehicle registration number / Number plate</p>
-              </div>
+              </div> */}
               <div>
                 <Label htmlFor="edit-deviceId">Device ID</Label>
                 <Input
@@ -1418,7 +1418,7 @@ export default function FleetManagement() {
                 />
                 <p className="text-xs text-gray-500 mt-1">GPS/Tracking device ID (optional)</p>
               </div>
-              <div>
+              {/* <div>
                 <Label htmlFor="edit-busNumber">Bus Number</Label>
                 <Input
                   id="edit-busNumber"
@@ -1426,7 +1426,7 @@ export default function FleetManagement() {
                   onChange={(e) => setEditingVehicle({ ...editingVehicle, busNumber: e.target.value })}
                   placeholder="e.g., NB-1234"
                 />
-              </div>
+              </div> */}
               <div>
                 <Label htmlFor="edit-model">Vehicle Model *</Label>
                 <Input
