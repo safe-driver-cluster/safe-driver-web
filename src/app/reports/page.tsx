@@ -13,91 +13,95 @@ import { Download, FileText, BarChart3, Users, AlertTriangle, CalendarIcon, Prin
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { generatePDFReport } from "@/lib/pdf-generator"
+import { useLanguage } from "@/components/language-provider"
 
-const reportTemplates = [
-  {
-    id: "daily-summary",
-    name: "Daily Safety Summary",
-    description: "Comprehensive daily report of all safety incidents and metrics with visual charts",
-    category: "Safety",
-    frequency: "Daily",
-    icon: <BarChart3 className="h-5 w-5 text-blue-500" />,
-  },
-  {
-    id: "driver-performance",
-    name: "Driver Performance Report",
-    description: "Individual driver safety scores and incident history with performance charts",
-    category: "Performance",
-    frequency: "Weekly",
-    icon: <Users className="h-5 w-5 text-green-500" />,
-  },
-  {
-    id: "fleet-analytics",
-    name: "Fleet Analytics Report",
-    description: "Vehicle-wise safety metrics and maintenance alerts with route analysis charts",
-    category: "Fleet",
-    frequency: "Monthly",
-    icon: <PieChart className="h-5 w-5 text-orange-500" />,
-  },
-  {
-    id: "route-safety",
-    name: "Route Safety Analysis",
-    description: "Route-specific incident patterns and risk assessment with radar charts",
-    category: "Analytics",
-    frequency: "Monthly",
-    icon: <BarChart3 className="h-5 w-5 text-purple-500" />,
-  },
-  {
-    id: "compliance",
-    name: "Regulatory Compliance Report",
-    description: "Compliance status with transport authority regulations and visual metrics",
-    category: "Compliance",
-    frequency: "Quarterly",
-    icon: <FileText className="h-5 w-5 text-blue-500" />,
-  },
-  {
-    id: "incident-detailed",
-    name: "Detailed Incident Report",
-    description: "In-depth analysis of specific safety incidents with distribution charts",
-    category: "Incidents",
-    frequency: "On-demand",
-    icon: <AlertTriangle className="h-5 w-5 text-red-500" />,
-  },
-]
 
-const recentReports = [
-  {
-    id: "RPT001",
-    name: "Daily Safety Summary - Jan 9, 2025",
-    type: "daily-summary",
-    generatedAt: "2025-01-09 23:59:59",
-    size: "2.4 MB",
-    status: "completed",
-  },
-  {
-    id: "RPT002",
-    name: "Driver Performance - Week 1, Jan 2025",
-    type: "driver-performance",
-    generatedAt: "2025-01-08 18:30:00",
-    size: "1.8 MB",
-    status: "completed",
-  },
-  {
-    id: "RPT003",
-    name: "Fleet Analytics - December 2024",
-    type: "fleet-analytics",
-    generatedAt: "2025-01-01 09:00:00",
-    size: "3.2 MB",
-    status: "completed",
-  },
-]
 
 export default function ReportsPage() {
+  const { t } = useLanguage()
   const [selectedTemplate, setSelectedTemplate] = useState("")
   const [dateFrom, setDateFrom] = useState<Date>()
   const [dateTo, setDateTo] = useState<Date>()
   const [reportFormat, setReportFormat] = useState("pdf")
   const [isGenerating, setIsGenerating] = useState(false)
+
+  const reportTemplates = [
+    {
+      id: "daily-summary",
+      name: t("daily_safety_summary"),
+      description: t("daily_summary_desc"),
+      category: t("safety"),
+      frequency: t("daily"),
+      icon: <BarChart3 className="h-5 w-5 text-blue-500" />,
+    },
+    {
+      id: "driver-performance",
+      name: t("driver_performance_report"),
+      description: t("driver_performance_desc"),
+      category: "Performance",
+      frequency: t("weekly"),
+      icon: <Users className="h-5 w-5 text-green-500" />,
+    },
+    {
+      id: "fleet-analytics",
+      name: t("fleet_analytics_report"),
+      description: t("fleet_analytics_desc"),
+      category: t("fleet"),
+      frequency: t("monthly"),
+      icon: <PieChart className="h-5 w-5 text-orange-500" />,
+    },
+    {
+      id: "route-safety",
+      name: t("route_safety_analysis"),
+      description: t("route_safety_desc"),
+      category: t("analytics"),
+      frequency: t("monthly"),
+      icon: <BarChart3 className="h-5 w-5 text-purple-500" />,
+    },
+    {
+      id: "compliance",
+      name: t("regulatory_compliance_report"),
+      description: t("regulatory_desc"),
+      category: t("compliance"),
+      frequency: t("quarterly"),
+      icon: <FileText className="h-5 w-5 text-blue-500" />,
+    },
+    {
+      id: "incident-detailed",
+      name: t("detailed_incident_report"),
+      description: t("detailed_incident_desc"),
+      category: t("incidents"),
+      frequency: t("on_demand"),
+      icon: <AlertTriangle className="h-5 w-5 text-red-500" />,
+    },
+  ]
+
+  const recentReports = [
+    {
+      id: "RPT001",
+      name: `${t("daily_safety_summary")} - Jan 9, 2025`,
+      type: "daily-summary",
+      generatedAt: "2025-01-09 23:59:59",
+      size: "2.4 MB",
+      status: "completed",
+    },
+    {
+      id: "RPT002",
+      name: `${t("driver_performance_report")} - Week 1, Jan 2025`,
+      type: "driver-performance",
+      generatedAt: "2025-01-08 18:30:00",
+      size: "1.8 MB",
+      status: "completed",
+    },
+    {
+      id: "RPT003",
+      name: `${t("fleet_analytics_report")} - December 2024`,
+      type: "fleet-analytics",
+      generatedAt: "2025-01-01 09:00:00",
+      size: "3.2 MB",
+      status: "completed",
+    },
+  ]
 
   const handleGenerateReport = async (reportType: string, customData?: any) => {
     setIsGenerating(true)
@@ -109,8 +113,8 @@ export default function ReportsPage() {
       // Generate PDF using the new PDF generator
       await generatePDFReport({
         type: reportType,
-        title: reportTemplates.find((t) => t.id === reportType)?.name || "SafeDriver Report",
-        dateRange: dateFrom && dateTo ? `${format(dateFrom, "PPP")} - ${format(dateTo, "PPP")}` : "All Time",
+        title: reportTemplates.find((t) => t.id === reportType)?.name || t("safedriver_report"),
+        dateRange: dateFrom && dateTo ? `${format(dateFrom, "PPP")} - ${format(dateTo, "PPP")}` : t("all_time"),
         data: reportData,
         format: reportFormat,
       })
@@ -285,15 +289,15 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Reports & Analytics</h1>
-        <p className="text-gray-600 mt-2">Generate comprehensive PDF reports with visual charts and analytics</p>
+        <h1 className="text-3xl font-bold text-gray-900">{t("reports_analytics")}</h1>
+        <p className="text-gray-600 mt-2">{t("reports_desc")}</p>
       </div>
 
       <Tabs defaultValue="generate" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="generate">Generate Reports</TabsTrigger>
-          <TabsTrigger value="recent">Recent Reports</TabsTrigger>
-          <TabsTrigger value="scheduled">Scheduled Reports</TabsTrigger>
+          <TabsTrigger value="generate">{t("generate_reports")}</TabsTrigger>
+          <TabsTrigger value="recent">{t("recent_reports") || "Recent Reports"}</TabsTrigger>
+          <TabsTrigger value="scheduled">{t("scheduled_reports")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="generate" className="space-y-6">
@@ -302,8 +306,8 @@ export default function ReportsPage() {
             <div className="lg:col-span-2">
               <Card>
                 <CardHeader>
-                  <CardTitle>Report Templates with Charts</CardTitle>
-                  <CardDescription>Choose from pre-configured report templates with visual analytics</CardDescription>
+                  <CardTitle>{t("report_templates")}</CardTitle>
+                  <CardDescription>{t("report_templates_desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-4">
@@ -327,7 +331,7 @@ export default function ReportsPage() {
                         </div>
                         <p className="text-sm text-gray-600 mb-2">{template.description}</p>
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-gray-500">Frequency: {template.frequency}</span>
+                          <span className="text-xs text-gray-500">{t("frequency")}: {template.frequency}</span>
                           <Button
                             size="sm"
                             onClick={(e) => {
@@ -337,7 +341,7 @@ export default function ReportsPage() {
                             disabled={isGenerating}
                           >
                             <Download className="h-4 w-4 mr-1" />
-                            {isGenerating ? "Generating..." : "Generate PDF"}
+                            {isGenerating ? t("generating") : t("generate_pdf")}
                           </Button>
                         </div>
                       </div>
@@ -351,26 +355,26 @@ export default function ReportsPage() {
             <div>
               <Card>
                 <CardHeader>
-                  <CardTitle>Report Configuration</CardTitle>
-                  <CardDescription>Customize your report parameters</CardDescription>
+                  <CardTitle>{t("report_config")}</CardTitle>
+                  <CardDescription>{t("report_params")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label htmlFor="format">Report Format</Label>
+                    <Label htmlFor="format">{t("report_format")}</Label>
                     <Select value={reportFormat} onValueChange={setReportFormat}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="pdf">PDF Document</SelectItem>
-                        <SelectItem value="excel">Excel Spreadsheet</SelectItem>
-                        <SelectItem value="csv">CSV File</SelectItem>
+                        <SelectItem value="pdf">{t("pdf_document")}</SelectItem>
+                        <SelectItem value="excel">{t("excel_spreadsheet")}</SelectItem>
+                        <SelectItem value="csv">{t("csv_file")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div>
-                    <Label>Date Range</Label>
+                    <Label>{t("date_range")}</Label>
                     <div className="flex gap-2">
                       <Popover>
                         <PopoverTrigger asChild>
@@ -382,7 +386,7 @@ export default function ReportsPage() {
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {dateFrom ? format(dateFrom, "PPP") : "From date"}
+                            {dateFrom ? format(dateFrom, "PPP") : t("from_date")}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
@@ -400,7 +404,7 @@ export default function ReportsPage() {
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {dateTo ? format(dateTo, "PPP") : "To date"}
+                            {dateTo ? format(dateTo, "PPP") : t("to_date")}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
@@ -411,31 +415,31 @@ export default function ReportsPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="filters">Additional Filters</Label>
+                    <Label htmlFor="filters">{t("additional_filters")}</Label>
                     <Select>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select filters" />
+                        <SelectValue placeholder={t("select_filters")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="high-severity">High Severity Only</SelectItem>
-                        <SelectItem value="specific-route">Specific Route</SelectItem>
-                        <SelectItem value="driver-performance">Driver Performance</SelectItem>
+                        <SelectItem value="high-severity">{t("high_severity_only")}</SelectItem>
+                        <SelectItem value="specific-route">{t("specific_route")}</SelectItem>
+                        <SelectItem value="driver-performance">{t("driver_performance") || "Driver Performance"}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div>
-                    <Label htmlFor="charts">Chart Options</Label>
+                    <Label htmlFor="charts">{t("chart_options")}</Label>
                     <Select defaultValue="all">
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Charts</SelectItem>
-                        <SelectItem value="bar">Bar Charts Only</SelectItem>
-                        <SelectItem value="pie">Pie Charts Only</SelectItem>
-                        <SelectItem value="line">Line Charts Only</SelectItem>
-                        <SelectItem value="none">No Charts</SelectItem>
+                        <SelectItem value="all">{t("all_charts")}</SelectItem>
+                        <SelectItem value="bar">{t("bar_charts_only")}</SelectItem>
+                        <SelectItem value="pie">{t("pie_charts_only")}</SelectItem>
+                        <SelectItem value="line">{t("line_charts_only")}</SelectItem>
+                        <SelectItem value="none">{t("no_charts")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -446,7 +450,7 @@ export default function ReportsPage() {
                     disabled={!selectedTemplate || isGenerating}
                   >
                     <FileText className="h-4 w-4 mr-2" />
-                    {isGenerating ? "Generating Report..." : "Generate Custom Report"}
+                    {isGenerating ? t("generating_report") : t("generate_custom_report")}
                   </Button>
                 </CardContent>
               </Card>
@@ -454,8 +458,8 @@ export default function ReportsPage() {
               {/* Quick Reports */}
               <Card className="mt-6">
                 <CardHeader>
-                  <CardTitle>Quick Reports</CardTitle>
-                  <CardDescription>Generate common reports instantly</CardDescription>
+                  <CardTitle>{t("quick_reports")}</CardTitle>
+                  <CardDescription>{t("quick_reports_desc")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <Button
@@ -465,7 +469,7 @@ export default function ReportsPage() {
                     disabled={isGenerating}
                   >
                     <BarChart3 className="h-4 w-4 mr-2" />
-                    Today's Summary with Charts
+                    {t("todays_summary")}
                   </Button>
                   <Button
                     variant="outline"
@@ -474,7 +478,7 @@ export default function ReportsPage() {
                     disabled={isGenerating}
                   >
                     <Users className="h-4 w-4 mr-2" />
-                    Driver Performance Charts
+                    {t("driver_performance_charts")}
                   </Button>
                   <Button
                     variant="outline"
@@ -483,7 +487,7 @@ export default function ReportsPage() {
                     disabled={isGenerating}
                   >
                     <AlertTriangle className="h-4 w-4 mr-2" />
-                    Incident Analysis Visuals
+                    {t("incident_analysis_visuals")}
                   </Button>
                 </CardContent>
               </Card>
@@ -494,8 +498,8 @@ export default function ReportsPage() {
         <TabsContent value="recent" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Recent Reports</CardTitle>
-              <CardDescription>Previously generated reports available for download</CardDescription>
+              <CardTitle>{t("recent_reports") || "Recent Reports"}</CardTitle>
+              <CardDescription>{t("previously_generated")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -506,7 +510,7 @@ export default function ReportsPage() {
                       <div>
                         <h3 className="font-semibold">{report.name}</h3>
                         <p className="text-sm text-gray-500">
-                          Generated: {format(new Date(report.generatedAt), "PPP pp")} • Size: {report.size}
+                          {t("generated")}: {format(new Date(report.generatedAt), "PPP pp")} • {t("size")}: {report.size}
                         </p>
                       </div>
                     </div>
@@ -514,11 +518,11 @@ export default function ReportsPage() {
                       <Badge variant="success">{report.status}</Badge>
                       <Button size="sm" variant="outline">
                         <Download className="h-4 w-4 mr-1" />
-                        Download
+                        {t("download") || "Download"}
                       </Button>
                       <Button size="sm" variant="outline">
                         <Printer className="h-4 w-4 mr-1" />
-                        Print
+                        {t("print")}
                       </Button>
                     </div>
                   </div>
@@ -531,36 +535,36 @@ export default function ReportsPage() {
         <TabsContent value="scheduled" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Scheduled Reports</CardTitle>
-              <CardDescription>Automated report generation schedule</CardDescription>
+              <CardTitle>{t("scheduled_reports")}</CardTitle>
+              <CardDescription>{t("automated_schedule")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
-                    <h3 className="font-semibold">Daily Safety Summary</h3>
-                    <p className="text-sm text-gray-500">Generated daily at 11:59 PM</p>
+                    <h3 className="font-semibold">{t("daily_safety_summary")}</h3>
+                    <p className="text-sm text-gray-500">{t("generated_daily")}</p>
                   </div>
-                  <Badge variant="success">Active</Badge>
+                  <Badge variant="success">{t("active")}</Badge>
                 </div>
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
-                    <h3 className="font-semibold">Weekly Driver Performance</h3>
-                    <p className="text-sm text-gray-500">Generated every Sunday at 6:00 PM</p>
+                    <h3 className="font-semibold">{t("driver_performance_report") || "Weekly Driver Performance"}</h3>
+                    <p className="text-sm text-gray-500">{t("generated_weekly")}</p>
                   </div>
-                  <Badge variant="success">Active</Badge>
+                  <Badge variant="success">{t("active")}</Badge>
                 </div>
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
-                    <h3 className="font-semibold">Monthly Fleet Analytics</h3>
-                    <p className="text-sm text-gray-500">Generated on 1st of each month</p>
+                    <h3 className="font-semibold">{t("fleet_analytics_report") || "Monthly Fleet Analytics"}</h3>
+                    <p className="text-sm text-gray-500">{t("generated_monthly")}</p>
                   </div>
-                  <Badge variant="secondary">Paused</Badge>
+                  <Badge variant="secondary">{t("paused")}</Badge>
                 </div>
               </div>
               <Button className="w-full mt-4">
                 <FileText className="h-4 w-4 mr-2" />
-                Configure Scheduled Reports
+                {t("configure_scheduled")}
               </Button>
             </CardContent>
           </Card>

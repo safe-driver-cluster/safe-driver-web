@@ -7,10 +7,12 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 
+import { useLanguage } from "@/components/language-provider"
+
 export function GeneralSettings() {
   const [systemName, setSystemName] = useState("SafeDriver Authority Panel")
   const [timezone, setTimezone] = useState("UTC")
-  const [language, setLanguage] = useState("en-US")
+  const { language, setLanguage } = useLanguage()
   const [autoLogout, setAutoLogout] = useState(true)
   const [sessionTimeout, setSessionTimeout] = useState("30")
 
@@ -42,6 +44,7 @@ export function GeneralSettings() {
               <SelectItem value="Europe/London">London (GMT)</SelectItem>
               <SelectItem value="Europe/Paris">Paris (CET)</SelectItem>
               <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
+              <SelectItem value="Asia/Colombo">Colombo (IST)</SelectItem>
               <SelectItem value="Australia/Sydney">Sydney (AEST)</SelectItem>
             </SelectContent>
           </Select>
@@ -50,18 +53,14 @@ export function GeneralSettings() {
 
         <div className="space-y-2">
           <Label htmlFor="language">Language</Label>
-          <Select value={language} onValueChange={setLanguage}>
+          <Select value={language} onValueChange={(val: any) => setLanguage(val)}>
             <SelectTrigger id="language">
               <SelectValue placeholder="Select language" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="en-US">English (US)</SelectItem>
-              <SelectItem value="en-GB">English (UK)</SelectItem>
-              <SelectItem value="es-ES">Spanish</SelectItem>
-              <SelectItem value="fr-FR">French</SelectItem>
-              <SelectItem value="de-DE">German</SelectItem>
-              <SelectItem value="ja-JP">Japanese</SelectItem>
-              <SelectItem value="zh-CN">Chinese (Simplified)</SelectItem>
+              <SelectItem value="si-LK">Sinhala</SelectItem>
+              <SelectItem value="en-US">English</SelectItem>
+              <SelectItem value="ta-LK">Tamil</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-sm text-muted-foreground">The language used throughout the system interface.</p>

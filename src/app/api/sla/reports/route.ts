@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
+export const dynamic = "force-dynamic"
+
 const reportQuerySchema = z.object({
   startDate: z.string(),
   endDate: z.string(),

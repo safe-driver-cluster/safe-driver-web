@@ -13,7 +13,7 @@ import {
   Users,
   AlertTriangle,
   CheckCircle,
-  Route,
+  Route as RouteIcon,
   Bus,
   Activity,
   TrendingUp,
@@ -22,8 +22,9 @@ import {
   Eye,
   Loader2,
 } from "lucide-react"
-import type { Route } from "@/lib/route-types"
+import type { Route, RouteStop } from "@/lib/route-types"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/components/language-provider"
 
 export default function RouteMonitoring() {
   const [routes, setRoutes] = useState<Route[]>([])
@@ -41,6 +42,7 @@ export default function RouteMonitoring() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const { toast } = useToast()
+  const { t } = useLanguage()
 
   // Fetch routes
   const fetchRoutes = async () => {
@@ -115,53 +117,53 @@ export default function RouteMonitoring() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-neutral-900 mb-2">Route Monitoring System</h1>
-        <p className="text-neutral-600">Real-time tracking and management of bus routes</p>
+        <h1 className="text-3xl font-bold text-neutral-900 mb-2">{t("route_monitoring")}</h1>
+        <p className="text-neutral-600">{t("route_monitoring_desc")}</p>
       </div>
 
       {/* Route Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Routes</CardTitle>
-            <Route className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-medium">{t("active_routes")}</CardTitle>
+            <RouteIcon className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">{stats.active}</div>
-            <p className="text-xs text-muted-foreground">Out of {stats.total} total routes</p>
+            <p className="text-xs text-muted-foreground">{t("routes_total_context").replace("{{total}}", String(stats.total))}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Vehicles on Routes</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("vehicles_on_routes")}</CardTitle>
             <Bus className="h-4 w-4 text-tech-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-tech-600">{stats.totalVehicles}</div>
-            <p className="text-xs text-muted-foreground">Currently operating</p>
+            <p className="text-xs text-muted-foreground">{t("currently_operating")}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">On-Time Performance</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("on_time_performance")}</CardTitle>
             <Clock className="h-4 w-4 text-safety-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-safety-600">{stats.averageOnTimePerformance}%</div>
-            <p className="text-xs text-muted-foreground">Average across all routes</p>
+            <p className="text-xs text-muted-foreground">{t("avg_across_routes")}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Safety Incidents</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("safety_incidents")}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-warning-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-warning-600">{stats.totalSafetyIncidents}</div>
-            <p className="text-xs text-muted-foreground">This week</p>
+            <p className="text-xs text-muted-foreground">{t("this_week")}</p>
           </CardContent>
         </Card>
       </div>
@@ -174,7 +176,7 @@ export default function RouteMonitoring() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
-                  placeholder="Search routes..."
+                  placeholder={t("search_routes")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -183,13 +185,13 @@ export default function RouteMonitoring() {
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40">
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder={t("status")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Routes</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="maintenance">Maintenance</SelectItem>
+                <SelectItem value="all">{t("all_routes")}</SelectItem>
+                <SelectItem value="active">{t("active")}</SelectItem>
+                <SelectItem value="inactive">{t("inactive")}</SelectItem>
+                <SelectItem value="maintenance">{t("route_maintenance")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -201,117 +203,117 @@ export default function RouteMonitoring() {
         <Card>
           <CardContent className="p-12 text-center">
             <Loader2 className="h-12 w-12 text-gray-400 mx-auto mb-4 animate-spin" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Loading routes...</h3>
-            <p className="text-gray-600">Please wait while we fetch route data.</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">{t("loading_routes")}</h3>
+            <p className="text-gray-600">{t("wait_fetching")}</p>
           </CardContent>
         </Card>
       ) : filteredRoutes.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
-            <Route className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No routes found</h3>
-            <p className="text-gray-600">No routes match your current filters.</p>
+            <RouteIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">{t("no_routes_found")}</h3>
+            <p className="text-gray-600">{t("no_routes_match")}</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {filteredRoutes.map((route) => (
-          <Card key={route.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-lg">{route.name}</CardTitle>
-                  <CardDescription>
-                    {route.startPoint} → {route.endPoint}
-                  </CardDescription>
+            <Card key={route.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-lg">{route.name}</CardTitle>
+                    <CardDescription>
+                      {route.startPoint} → {route.endPoint}
+                    </CardDescription>
+                  </div>
+                  <Badge variant={route.status === "active" ? "success" : "secondary"} className="uppercase">
+                    {t(route.status as any)}
+                  </Badge>
                 </div>
-                <Badge variant={route.status === "active" ? "success" : "secondary"}>
-                  {route.status.toUpperCase()}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Route Info */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-gray-500" />
-                    <span>{route.distance} km</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-gray-500" />
-                    <span>{route.estimatedTime} min</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Bus className="h-4 w-4 text-gray-500" />
-                    <span>{route.activeVehicles} vehicles</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-gray-500" />
-                    <span>{route.totalStops} stops</span>
-                  </div>
-                </div>
-
-                {/* Performance Metrics */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className={`text-lg font-bold ${getPerformanceColor(route.onTimePerformance)}`}>
-                      {Math.round(route.onTimePerformance)}%
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Route Info */}
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-gray-500" />
+                      <span>{route.distance} km</span>
                     </div>
-                    <div className="text-xs text-gray-500">On-Time</div>
-                  </div>
-                  <div className="text-center">
-                    <div className={`text-lg font-bold ${getLoadColor(route.passengerLoad)}`}>
-                      {Math.round(route.passengerLoad)}%
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-gray-500" />
+                      <span>{route.estimatedTime} min</span>
                     </div>
-                    <div className="text-xs text-gray-500">Load</div>
+                    <div className="flex items-center gap-2">
+                      <Bus className="h-4 w-4 text-gray-500" />
+                      <span>{route.activeVehicles} {t("vehicles_count")}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-gray-500" />
+                      <span>{route.totalStops} {t("stops_count")}</span>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-blue-600">{Math.round(route.averageSpeed)}</div>
-                    <div className="text-xs text-gray-500">km/h</div>
+
+                  {/* Performance Metrics */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className={`text-lg font-bold ${getPerformanceColor(route.onTimePerformance)}`}>
+                        {Math.round(route.onTimePerformance)}%
+                      </div>
+                      <div className="text-xs text-gray-500">{t("on_time")}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className={`text-lg font-bold ${getLoadColor(route.passengerLoad)}`}>
+                        {Math.round(route.passengerLoad)}%
+                      </div>
+                      <div className="text-xs text-gray-500">{t("load")}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-blue-600">{Math.round(route.averageSpeed)}</div>
+                      <div className="text-xs text-gray-500">{t("avg_speed")}</div>
+                    </div>
+                  </div>
+
+                  {/* Active Vehicles */}
+                  <div>
+                    <p className="text-sm font-medium mb-2">{t("active_vehicles_label")}:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {route.vehicles.map((vehicle: string) => (
+                        <Badge key={vehicle} variant="outline" className="text-xs">
+                          {vehicle}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Safety Status */}
+                  {route.safetyIncidents > 0 && (
+                    <div className="flex items-center gap-2 p-2 bg-red-50 rounded-lg">
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                      <span className="text-sm text-red-700">
+                        {route.safetyIncidents} {t("safety_incidents")} {t("this_week")}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 pt-2">
+                    <Button size="sm" variant="outline" onClick={() => setSelectedRoute(route)}>
+                      <Eye className="h-4 w-4 mr-1" />
+                      {t("view_details")}
+                    </Button>
+                    <Button size="sm" variant="outline">
+                      <Navigation className="h-4 w-4 mr-1" />
+                      {t("track_live")}
+                    </Button>
+                    <Button size="sm" variant="outline">
+                      <Activity className="h-4 w-4 mr-1" />
+                      {t("route_analytics")}
+                    </Button>
                   </div>
                 </div>
-
-                {/* Active Vehicles */}
-                <div>
-                  <p className="text-sm font-medium mb-2">Active Vehicles:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {route.vehicles.map((vehicle) => (
-                      <Badge key={vehicle} variant="outline" className="text-xs">
-                        {vehicle}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Safety Status */}
-                {route.safetyIncidents > 0 && (
-                  <div className="flex items-center gap-2 p-2 bg-red-50 rounded-lg">
-                    <AlertTriangle className="h-4 w-4 text-red-600" />
-                    <span className="text-sm text-red-700">
-                      {route.safetyIncidents} safety incident{route.safetyIncidents > 1 ? "s" : ""} this week
-                    </span>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex gap-2 pt-2">
-                  <Button size="sm" variant="outline" onClick={() => setSelectedRoute(route)}>
-                    <Eye className="h-4 w-4 mr-1" />
-                    View Details
-                  </Button>
-                  <Button size="sm" variant="outline">
-                    <Navigation className="h-4 w-4 mr-1" />
-                    Track Live
-                  </Button>
-                  <Button size="sm" variant="outline">
-                    <Activity className="h-4 w-4 mr-1" />
-                    Analytics
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
@@ -320,8 +322,8 @@ export default function RouteMonitoring() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Route Performance Trends</CardTitle>
-            <CardDescription>Weekly performance comparison</CardDescription>
+            <CardTitle>{t("performance_trends")}</CardTitle>
+            <CardDescription>{t("performance_weekly")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {routes.map((route) => (
@@ -344,8 +346,8 @@ export default function RouteMonitoring() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Passenger Load Analysis</CardTitle>
-            <CardDescription>Current capacity utilization</CardDescription>
+            <CardTitle>{t("passenger_load")}</CardTitle>
+            <CardDescription>{t("capacity_utilization")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {routes.map((route) => (
@@ -358,13 +360,12 @@ export default function RouteMonitoring() {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
-                    className={`h-2 rounded-full ${
-                      route.passengerLoad >= 90
-                        ? "bg-red-500"
-                        : route.passengerLoad >= 70
-                          ? "bg-yellow-500"
-                          : "bg-green-500"
-                    }`}
+                    className={`h-2 rounded-full ${route.passengerLoad >= 90
+                      ? "bg-red-500"
+                      : route.passengerLoad >= 70
+                        ? "bg-yellow-500"
+                        : "bg-green-500"
+                      }`}
                     style={{ width: `${route.passengerLoad}%` }}
                   ></div>
                 </div>
@@ -393,18 +394,17 @@ export default function RouteMonitoring() {
 
               {/* Route Progress */}
               <div className="mb-6">
-                <h3 className="text-lg font-semibold mb-4">Current Progress</h3>
+                <h3 className="text-lg font-semibold mb-4">{t("current_progress")}</h3>
                 <div className="space-y-3">
-                  {selectedRoute.stops.map((stop, index) => (
+                  {selectedRoute.stops.map((stop: RouteStop, index: number) => (
                     <div key={index} className="flex items-center gap-4">
                       <div
-                        className={`w-4 h-4 rounded-full ${
-                          stop.status === "completed"
-                            ? "bg-green-500"
-                            : stop.status === "current"
-                              ? "bg-blue-500"
-                              : "bg-gray-300"
-                        }`}
+                        className={`w-4 h-4 rounded-full ${stop.status === "completed"
+                          ? "bg-green-500"
+                          : stop.status === "current"
+                            ? "bg-blue-500"
+                            : "bg-gray-300"
+                          }`}
                       ></div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center">
@@ -425,19 +425,19 @@ export default function RouteMonitoring() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-4 border rounded-lg">
                   <div className="text-2xl font-bold text-blue-600">{selectedRoute.distance}</div>
-                  <div className="text-sm text-gray-600">Distance (km)</div>
+                  <div className="text-sm text-gray-600">{t("distance_km")}</div>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
                   <div className="text-2xl font-bold text-green-600">{selectedRoute.estimatedTime}</div>
-                  <div className="text-sm text-gray-600">Est. Time (min)</div>
+                  <div className="text-sm text-gray-600">{t("est_time_min")}</div>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
                   <div className="text-2xl font-bold text-purple-600">{selectedRoute.activeVehicles}</div>
-                  <div className="text-sm text-gray-600">Active Vehicles</div>
+                  <div className="text-sm text-gray-600">{t("active_vehicles_label")}</div>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
                   <div className="text-2xl font-bold text-orange-600">{Math.round(selectedRoute.averageSpeed)}</div>
-                  <div className="text-sm text-gray-600">Avg Speed (km/h)</div>
+                  <div className="text-sm text-gray-600">{t("avg_speed")}</div>
                 </div>
               </div>
             </div>

@@ -15,8 +15,10 @@ import {
   ThumbsUp,
 } from "lucide-react"
 import type { Feedback } from "@/lib/feedback-service"
+import { useLanguage } from "@/components/language-provider"
 
 export default function CompliancePage() {
+  const { t } = useLanguage()
   const [feedback, setFeedback] = useState<Feedback[]>([])
   const [filteredFeedback, setFilteredFeedback] = useState<Feedback[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,8 +66,8 @@ export default function CompliancePage() {
     averageRating:
       feedback.length > 0
         ? Math.round(
-            (feedback.reduce((sum, f) => sum + (f.rating?.overall || 0), 0) / feedback.length) * 10,
-          ) / 10
+          (feedback.reduce((sum, f) => sum + (f.rating?.overall || 0), 0) / feedback.length) * 10,
+        ) / 10
         : 0,
   }
 
@@ -131,31 +133,31 @@ export default function CompliancePage() {
   return (
     <div className="container mx-auto p-4 md:p-6 pt-20 space-y-4">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Feedback Management</h1>
-        <p className="text-sm text-gray-600">View and manage customer feedback and complaints</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{t("feedback_management")}</h1>
+        <p className="text-sm text-gray-600">{t("feedback_desc")}</p>
       </div>
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Feedback</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("total_feedback")}</CardTitle>
             <MessageSquare className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">All feedback items</p>
+            <p className="text-xs text-muted-foreground">{t("all_feedback") || "All feedback items"}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Rating</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("average_rating")}</CardTitle>
             <Star className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.averageRating.toFixed(1)}</div>
-            <p className="text-xs text-muted-foreground">Out of 5.0</p>
+            <p className="text-xs text-muted-foreground">{t("out_of_5") || "Out of 5.0"}</p>
           </CardContent>
         </Card>
       </div>
@@ -163,14 +165,14 @@ export default function CompliancePage() {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Filters</CardTitle>
+          <CardTitle>{t("filters")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Search feedback..."
+                placeholder={t("search_feedback")}
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -178,25 +180,25 @@ export default function CompliancePage() {
             </div>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="Type" />
+                <SelectValue placeholder={t("select_type")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="positive">Positive</SelectItem>
-                <SelectItem value="negative">Negative</SelectItem>
-                <SelectItem value="complaint">Complaint</SelectItem>
-                <SelectItem value="suggestion">Suggestion</SelectItem>
+                <SelectItem value="all">{t("all_types")}</SelectItem>
+                <SelectItem value="positive">{t("positive")}</SelectItem>
+                <SelectItem value="negative">{t("negative")}</SelectItem>
+                <SelectItem value="complaint">{t("complaint")}</SelectItem>
+                <SelectItem value="suggestion">{t("suggestion")}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="Priority" />
+                <SelectValue placeholder={t("select_priority")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="all">{t("all_priorities")}</SelectItem>
+                <SelectItem value="high">{t("high") || "High"}</SelectItem>
+                <SelectItem value="medium">{t("medium") || "Medium"}</SelectItem>
+                <SelectItem value="low">{t("low") || "Low"}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -206,17 +208,17 @@ export default function CompliancePage() {
       {/* Feedback List */}
       <Card>
         <CardHeader>
-          <CardTitle>Feedback Items</CardTitle>
-          <CardDescription>Manage and respond to customer feedback</CardDescription>
+          <CardTitle>{t("feedback_items")}</CardTitle>
+          <CardDescription>{t("feedback_items_desc")}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-sm text-gray-500">Loading feedback...</div>
+              <div className="text-sm text-gray-500">{t("loading_feedback")}</div>
             </div>
           ) : filteredFeedback.length === 0 ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-sm text-gray-500">No feedback found</div>
+              <div className="text-sm text-gray-500">{t("no_feedback_found")}</div>
             </div>
           ) : (
             <div className="space-y-3">
@@ -228,19 +230,19 @@ export default function CompliancePage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-lg">{item.title || "Untitled Feedback"}</h3>
-                        <Badge className={getStatusColor(item.status)}>{item.status || "submitted"}</Badge>
-                        <Badge className={getTypeColor(item.type)}>{item.type || "general"}</Badge>
+                        <h3 className="font-semibold text-lg">{item.title || t("untitled_feedback")}</h3>
+                        <Badge className={getStatusColor(item.status)}>{t(item.status as any) || item.status || t("submitted") || "submitted"}</Badge>
+                        <Badge className={getTypeColor(item.type)}>{t(item.type as any) || item.type || "general"}</Badge>
                         {item.priority && (
-                          <Badge className={getPriorityColor(item.priority)}>{item.priority}</Badge>
+                          <Badge className={getPriorityColor(item.priority)}>{t(item.priority as any) || item.priority}</Badge>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600 mb-3">{item.description || item.comment || "No description"}</p>
+                      <p className="text-sm text-gray-600 mb-3">{item.description || item.comment || t("no_description")}</p>
                       <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
                         {item.userName && (
                           <div className="flex items-center gap-1">
                             <User className="h-3 w-3" />
-                            <span>{item.isAnonymous ? "Anonymous" : item.userName}</span>
+                            <span>{item.isAnonymous ? t("anonymous") : item.userName}</span>
                           </div>
                         )}
                         {item.busNumber && (
@@ -270,10 +272,10 @@ export default function CompliancePage() {
                       </div>
                       {item.response && (
                         <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <p className="text-xs font-medium text-blue-900 mb-1">Response:</p>
+                          <p className="text-xs font-medium text-blue-900 mb-1">{t("response")}:</p>
                           <p className="text-sm text-blue-800">{item.response}</p>
                           {item.respondedBy && (
-                            <p className="text-xs text-blue-600 mt-1">By {item.respondedBy}</p>
+                            <p className="text-xs text-blue-600 mt-1">{t("by")} {item.respondedBy}</p>
                           )}
                         </div>
                       )}

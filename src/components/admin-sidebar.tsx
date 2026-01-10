@@ -17,45 +17,48 @@ import {
   HelpCircle,
 } from "lucide-react"
 
+import { useLanguage } from "@/components/language-provider"
+
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Live Alerts", href: "/alerts", icon: AlertTriangle },
-  { name: "Driver Management", href: "/drivers", icon: Users },
-  { name: "Fleet Management", href: "/fleet", icon: Bus },
-  { name: "Route Monitoring", href: "/routes", icon: MapPin },
-  { name: "Reports & Analytics", href: "/reports", icon: FileText },
-  { name: "Performance Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "Compliance", href: "/compliance", icon: Shield },
-  { name: "System Settings", href: "/settings", icon: Settings },
+  { id: "dashboard", href: "/", icon: LayoutDashboard },
+  { id: "live_alerts", href: "/alerts", icon: AlertTriangle },
+  { id: "drivers", href: "/drivers", icon: Users },
+  { id: "fleet", href: "/fleet", icon: Bus },
+  { id: "routes", href: "/routes", icon: MapPin },
+  { id: "reports", href: "/reports", icon: FileText },
+  { id: "analytics", href: "/analytics", icon: BarChart3 },
+  { id: "compliance", href: "/compliance", icon: Shield },
+  { id: "settings", href: "/settings", icon: Settings },
 ]
 
 export function AdminSidebar() {
   const pathname = usePathname()
   const { alerts: liveAlerts } = useLiveAlerts()
-  
+  const { t } = useLanguage()
+
   // Count active alerts (alerts with status "active")
   const activeAlertsCount = liveAlerts.filter((alert) => alert.status === "active").length
 
   return (
-    <div className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white border-r border-gray-200 overflow-y-auto shadow-sm z-50">
+    <div className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-background border-r border-border overflow-y-auto shadow-sm z-50">
       <div className="flex flex-col h-full">
         <div className="p-4">
-          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Main Navigation</div>
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">{t("main_navigation")}</div>
           <nav className="space-y-1">
             {navigation.map((item) => {
               const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`)
               return (
                 <Link
-                  key={item.name}
+                  key={item.id}
                   href={item.href}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer relative z-10",
-                    isActive ? "bg-primary-50 text-primary-600" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                    isActive ? "bg-primary/20 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
                   <item.icon className={cn("h-5 w-5", isActive ? "text-primary-500" : "text-gray-400")} />
-                  <span>{item.name}</span>
-                  {item.name === "Live Alerts" && activeAlertsCount > 0 && (
+                  <span>{t(item.id)}</span>
+                  {item.id === "live_alerts" && activeAlertsCount > 0 && (
                     <span className="ml-auto bg-red-100 text-red-600 text-xs font-semibold px-2 py-0.5 rounded-full">
                       {activeAlertsCount}
                     </span>
@@ -69,20 +72,20 @@ export function AdminSidebar() {
         <div className="mt-auto p-4 border-t border-gray-200">
           <Link
             href="/help"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 cursor-pointer"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
           >
             <HelpCircle className="h-5 w-5 text-gray-400" />
-            <span>Help & Support</span>
+            <span>{t("help_support")}</span>
           </Link>
 
-          <div className="mt-4 bg-gray-50 rounded-lg p-4">
+          <div className="mt-4 bg-muted rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-medium">
+              <div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-medium">
                 SD
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">SafeDriver Pro</p>
-                <p className="text-xs text-gray-500">v2.4.0</p>
+                <p className="text-sm font-medium text-foreground">{t("safedriver_pro")}</p>
+                <p className="text-xs text-muted-foreground">v2.4.0</p>
               </div>
             </div>
           </div>

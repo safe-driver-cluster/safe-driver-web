@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
+export const dynamic = "force-dynamic"
+
 const metricsQuerySchema = z.object({
   ticketId: z.string().optional(),
   ruleId: z.string().optional(),

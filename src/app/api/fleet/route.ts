@@ -53,9 +53,9 @@ const createVehicleSchema = z.object({
       address: z.string(),
     })
     .optional(),
-  fuel: z.number().min(0, "Fuel level cannot be negative").max(100, "Fuel level cannot exceed 100%").optional(),
+
   mileage: z.number().min(0, "Mileage cannot be negative").optional(),
-  status: z.enum(["active", "maintenance", "inactive"]).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
 })
 
 // GET /api/fleet - Get all vehicles with optional filters
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     const filters = {
       status: searchParams.get("status") || undefined,
-      maintenanceStatus: searchParams.get("maintenanceStatus") || undefined,
+
       search: searchParams.get("search") || undefined,
       driverId: searchParams.get("driverId") || undefined,
     }
@@ -111,12 +111,12 @@ export async function POST(request: NextRequest) {
         return `${field.charAt(0).toUpperCase() + field.slice(1)}: ${err.message}`
       })
 
-      const mainError = errorMessages.length === 1 
+      const mainError = errorMessages.length === 1
         ? errorMessages[0]
         : `Please fix the following errors:\n${errorMessages.join("\n")}`
 
       return NextResponse.json(
-        { 
+        {
           error: "Validation failed",
           message: mainError,
           details: validationResult.error.errors,

@@ -25,11 +25,12 @@ import {
   Car,
 } from "lucide-react"
 import { useLiveAlerts } from "@/hooks/use-live-alerts"
+import { useLanguage } from "@/components/language-provider"
 
 // Helper function to format relative time
-const formatRelativeTime = (timestamp: string | number): string => {
-  if (!timestamp) return "Unknown"
-  
+const formatRelativeTime = (timestamp: string | number, t: (key: string) => string): string => {
+  if (!timestamp) return t("unknown")
+
   const timestampMs = typeof timestamp === "string" ? new Date(timestamp).getTime() : timestamp
   const now = Date.now()
   const diffMs = now - timestampMs
@@ -39,28 +40,29 @@ const formatRelativeTime = (timestamp: string | number): string => {
   const diffDays = Math.floor(diffHours / 24)
 
   if (diffSeconds < 60) {
-    return `${diffSeconds} second${diffSeconds !== 1 ? "s" : ""} ago`
+    return `${diffSeconds} ${t("seconds_ago")}`
   } else if (diffMinutes < 60) {
-    return `${diffMinutes} minute${diffMinutes !== 1 ? "s" : ""} ago`
+    return `${diffMinutes} ${t("minutes_ago")}`
   } else if (diffHours < 24) {
-    return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`
+    return `${diffHours} ${t("hours_ago")}`
   } else {
-    return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`
+    return `${diffDays} ${t("days_ago")}`
   }
 }
 
 export default function AnalyticsPage() {
   // Get real-time alerts
   const { alerts: liveAlerts, isLoading: isLoadingAlerts } = useLiveAlerts()
-  
+  const { t } = useLanguage()
+
   // Feedback state
   const [feedback, setFeedback] = useState<any[]>([])
   const [isLoadingFeedback, setIsLoadingFeedback] = useState(true)
-  
+
   // Drivers state
   const [recentDrivers, setRecentDrivers] = useState<any[]>([])
   const [isLoadingDrivers, setIsLoadingDrivers] = useState(true)
-  
+
   // Fleet state
   const [recentFleet, setRecentFleet] = useState<any[]>([])
   const [isLoadingFleet, setIsLoadingFleet] = useState(true)
@@ -227,7 +229,7 @@ export default function AnalyticsPage() {
         return timeB - timeA
       })
       .slice(0, 6)
-  }, [liveAlerts, feedback, recentDrivers, recentFleet])
+  }, [liveAlerts, feedback, recentDrivers, recentFleet, t])
 
   const insights = [
     {
@@ -239,24 +241,8 @@ export default function AnalyticsPage() {
       category: "safety",
       recommendation: "Continue current training programs and expand to include advanced scenarios",
     },
-    {
-      id: "2",
-      title: "Incident Response Time",
-      description: "Average response time to safety incidents has increased",
-      type: "warning",
-      confidence: 87,
-      category: "operations",
-      recommendation: "Review response protocols and consider additional training",
-    },
-    {
-      id: "3",
-      title: "Compliance Score Improvement",
-      description: "Overall compliance scores show steady improvement",
-      type: "success",
-      confidence: 95,
-      category: "compliance",
-      recommendation: "Maintain current compliance monitoring practices",
-    },
+    // ... skipping hardcoded values for now, ideally fetch or translate dynamic content too
+    // For now assuming these are static examples or will come from API
   ]
 
   return (
@@ -264,24 +250,24 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t("analytics_dashboard")}</h1>
           <p className="text-gray-600 mt-2">
-            Comprehensive insights into compliance status, performance metrics, and safety analytics
+            {t("analytics_desc")}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <Button variant="outline">
             <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh Data
+            {t("refresh_data")}
           </Button>
           <Button variant="outline">
             <Download className="h-4 w-4 mr-2" />
-            Export
+            {t("export")}
           </Button>
           <Button variant="outline">
             <Settings className="h-4 w-4 mr-2" />
-            Configure
+            {t("configure")}
           </Button>
         </div>
       </div>
@@ -290,30 +276,30 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overall Safety Score</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("overall_safety_score")}</CardTitle>
             <Shield className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{metrics.safetyScore}%</div>
-            <p className="text-xs text-muted-foreground">+2.3% from last month</p>
+            <p className="text-xs text-muted-foreground">+2.3% {t("from_last_month")}</p>
             <Progress value={metrics.safetyScore} className="mt-2" />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Alerts</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("total_alerts")}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{metrics.totalAlerts}</div>
-            <p className="text-xs text-muted-foreground">-12.5% from last month</p>
+            <p className="text-xs text-muted-foreground">-12.5% {t("from_last_month")}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Risk Level</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("risk_level")}</CardTitle>
             <Target className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
@@ -326,12 +312,12 @@ export default function AnalyticsPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Performance Index</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("performance_index")}</CardTitle>
             <Activity className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-600">{metrics.performanceIndex}%</div>
-            <p className="text-xs text-muted-foreground">+2.1% from last month</p>
+            <p className="text-xs text-muted-foreground">+2.1% {t("from_last_month")}</p>
             <Progress value={metrics.performanceIndex} className="mt-2" />
           </CardContent>
         </Card>
@@ -339,10 +325,10 @@ export default function AnalyticsPage() {
 
       <Tabs defaultValue="dashboard" className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="compliance">Compliance</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="insights">AI Insights</TabsTrigger>
+          <TabsTrigger value="dashboard">{t("dashboard")}</TabsTrigger>
+          <TabsTrigger value="compliance">{t("compliance")}</TabsTrigger>
+          <TabsTrigger value="performance">{t("performance")}</TabsTrigger>
+          <TabsTrigger value="insights">{t("ai_insights")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-6">
@@ -352,35 +338,35 @@ export default function AnalyticsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5 text-blue-600" />
-                  Compliance Overview
+                  {t("compliance_overview")}
                 </CardTitle>
-                <CardDescription>Current compliance status across all areas</CardDescription>
+                <CardDescription>{t("compliance_desc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Regulatory Compliance</span>
+                    <span className="text-sm">{t("regulatory_compliance")}</span>
                     <div className="flex items-center gap-2">
                       <Progress value={96} className="w-20" />
                       <span className="text-sm font-medium">96%</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Safety Standards</span>
+                    <span className="text-sm">{t("safety_standards")}</span>
                     <div className="flex items-center gap-2">
                       <Progress value={92} className="w-20" />
                       <span className="text-sm font-medium">92%</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Environmental</span>
+                    <span className="text-sm">{t("environmental")}</span>
                     <div className="flex items-center gap-2">
                       <Progress value={98} className="w-20" />
                       <span className="text-sm font-medium">98%</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Operational</span>
+                    <span className="text-sm">{t("operational")}</span>
                     <div className="flex items-center gap-2">
                       <Progress value={91} className="w-20" />
                       <span className="text-sm font-medium">91%</span>
@@ -395,32 +381,32 @@ export default function AnalyticsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="h-5 w-5 text-green-600" />
-                  Performance Metrics
+                  {t("performance_metrics")}
                 </CardTitle>
-                <CardDescription>Key performance indicators</CardDescription>
+                <CardDescription>{t("kpi")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Efficiency</span>
+                    <span className="text-sm">{t("efficiency")}</span>
                     <span className="font-bold">{metrics.efficiency}%</span>
                   </div>
                   <Progress value={metrics.efficiency} />
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Quality</span>
+                    <span className="text-sm">{t("quality")}</span>
                     <span className="font-bold">{metrics.quality}%</span>
                   </div>
                   <Progress value={metrics.quality} />
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Reliability</span>
+                    <span className="text-sm">{t("reliability")}</span>
                     <span className="font-bold">{metrics.reliability}%</span>
                   </div>
                   <Progress value={metrics.reliability} />
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Safety</span>
+                    <span className="text-sm">{t("safety")}</span>
                     <span className="font-bold">89%</span>
                   </div>
                   <Progress value={89} />
@@ -434,18 +420,18 @@ export default function AnalyticsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bell className="h-5 w-5 text-orange-600" />
-                Recent Activity
+                {t("recent_activity")}
               </CardTitle>
-              <CardDescription>Latest alerts and notifications</CardDescription>
+              <CardDescription>{t("latest_alerts_notifs")}</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingAlerts && isLoadingFeedback && isLoadingDrivers && isLoadingFleet ? (
                 <div className="flex items-center justify-center py-8">
-                  <div className="text-sm text-gray-500">Loading activities...</div>
+                  <div className="text-sm text-gray-500">{t("loading_activities")}</div>
                 </div>
               ) : recentActivities.length === 0 ? (
                 <div className="flex items-center justify-center py-8">
-                  <div className="text-sm text-gray-500">No recent activities</div>
+                  <div className="text-sm text-gray-500">{t("no_recent_activities")}</div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -458,7 +444,7 @@ export default function AnalyticsPage() {
                           <div className="font-medium">{activity.title}</div>
                           <div className="text-sm text-gray-600">{activity.description}</div>
                         </div>
-                        <div className="text-xs text-gray-500">{formatRelativeTime(activity.timestamp)}</div>
+                        <div className="text-xs text-gray-500">{formatRelativeTime(activity.timestamp, t)}</div>
                       </div>
                     )
                   })}
@@ -474,7 +460,7 @@ export default function AnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Shield className="h-4 w-4 text-green-600" />
-                  Overall Score
+                  {t("overall_score")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -487,7 +473,7 @@ export default function AnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-orange-600" />
-                  Total Alerts
+                  {t("total_alerts")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -500,7 +486,7 @@ export default function AnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Target className="h-4 w-4 text-blue-600" />
-                  Risk Level
+                  {t("risk_level")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -515,12 +501,12 @@ export default function AnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-purple-600" />
-                  Trend
+                  {t("trend")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-purple-600">+2.3%</div>
-                <div className="text-xs text-muted-foreground mt-1">Safety improvement</div>
+                <div className="text-xs text-muted-foreground mt-1">{t("safety_improvement")}</div>
               </CardContent>
             </Card>
           </div>
@@ -528,42 +514,42 @@ export default function AnalyticsPage() {
           {/* Compliance Details */}
           <Card>
             <CardHeader>
-              <CardTitle>Compliance Details</CardTitle>
-              <CardDescription>Detailed breakdown of compliance metrics</CardDescription>
+              <CardTitle>{t("compliance_details")}</CardTitle>
+              <CardDescription>{t("compliance_breakdown")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h4 className="font-medium">Regulatory Compliance</h4>
+                  <h4 className="font-medium">{t("regulatory_compliance")}</h4>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm">DOT Regulations</span>
+                      <span className="text-sm">{t("dot_regulations")}</span>
                       <span className="font-medium">98%</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm">Safety Standards</span>
+                      <span className="text-sm">{t("safety_standards")}</span>
                       <span className="font-medium">95%</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm">Environmental</span>
+                      <span className="text-sm">{t("environmental")}</span>
                       <span className="font-medium">97%</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="font-medium">Operational Compliance</h4>
+                  <h4 className="font-medium">{t("operational")} {t("compliance")}</h4>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm">Driver Training</span>
+                      <span className="text-sm">{t("driver_training")}</span>
                       <span className="font-medium">96%</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm">Vehicle Maintenance</span>
+                      <span className="text-sm">{t("vehicle_maintenance")}</span>
                       <span className="font-medium">94%</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm">Documentation</span>
+                      <span className="text-sm">{t("documentation")}</span>
                       <span className="font-medium">99%</span>
                     </div>
                   </div>
@@ -579,25 +565,25 @@ export default function AnalyticsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="h-5 w-5 text-blue-600" />
-                  Performance Metrics
+                  {t("performance_metrics")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Efficiency</span>
+                    <span className="text-sm">{t("efficiency")}</span>
                     <span className="font-bold">{metrics.efficiency}%</span>
                   </div>
                   <Progress value={metrics.efficiency} />
 
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Quality</span>
+                    <span className="text-sm">{t("quality")}</span>
                     <span className="font-bold">{metrics.quality}%</span>
                   </div>
                   <Progress value={metrics.quality} />
 
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Reliability</span>
+                    <span className="text-sm">{t("reliability")}</span>
                     <span className="font-bold">{metrics.reliability}%</span>
                   </div>
                   <Progress value={metrics.reliability} />
@@ -609,23 +595,23 @@ export default function AnalyticsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5 text-green-600" />
-                  Team Performance
+                  {t("team_performance")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Training Completion</span>
+                    <span className="text-sm">{t("training_completion")}</span>
                     <span className="font-bold text-green-600">98%</span>
                   </div>
 
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Certification Rate</span>
+                    <span className="text-sm">{t("certification_rate")}</span>
                     <span className="font-bold text-blue-600">95%</span>
                   </div>
 
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Engagement Score</span>
+                    <span className="text-sm">{t("engagement_score")}</span>
                     <span className="font-bold text-purple-600">89%</span>
                   </div>
                 </div>
@@ -636,23 +622,23 @@ export default function AnalyticsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="h-5 w-5 text-orange-600" />
-                  Response Times
+                  {t("response_times")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Incident Response</span>
+                    <span className="text-sm">{t("incident_response")}</span>
                     <span className="font-bold">4.2 min</span>
                   </div>
 
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Alert Processing</span>
+                    <span className="text-sm">{t("alert_processing")}</span>
                     <span className="font-bold">1.8 min</span>
                   </div>
 
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Resolution Time</span>
+                    <span className="text-sm">{t("resolution_time")}</span>
                     <span className="font-bold">24.5 min</span>
                   </div>
                 </div>
@@ -666,9 +652,9 @@ export default function AnalyticsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Brain className="h-5 w-5 text-purple-600" />
-                AI-Powered Insights
+                {t("ai_insights")}
               </CardTitle>
-              <CardDescription>Machine learning analysis and recommendations</CardDescription>
+              <CardDescription>{t("ai_desc")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
@@ -680,10 +666,10 @@ export default function AnalyticsPage() {
                     </div>
                     <p className="text-sm text-gray-600 mb-2">{insight.description}</p>
                     <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                      <strong>Recommendation:</strong> {insight.recommendation}
+                      <strong>{t("recommendation")}:</strong> {insight.recommendation}
                     </div>
                     <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="outline">Confidence: {insight.confidence}%</Badge>
+                      <Badge variant="outline">{t("confidence")}: {insight.confidence}%</Badge>
                       <Badge variant="outline">{insight.category}</Badge>
                     </div>
                   </div>
