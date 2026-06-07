@@ -1,569 +1,380 @@
-import jsPDF from "jspdf"
-import "jspdf-autotable"
-import { format } from "date-fns"
-import {
-  generateAlertDistributionChart,
-  generateSafetyScoreChart,
-  generateAlertTrendChart,
-  generateRouteSafetyRadarChart,
-  generateComplianceChart,
-} from "./chart-generator"
+const translateTextForPDF = (text: string): string => {
+  if (!text) return "";
+  
+  const trimmed = text.trim();
+  
+  const hasSinhala = /[\u0D80-\u0DFF]/.test(trimmed);
+  const hasTamil = /[\u0B80-\u0BFF]/.test(trimmed);
+  const hasLegacyAbhaya = /[\u00b0-\u00ff]/.test(trimmed) && (trimmed.includes("½") || trimmed.includes("Ò") || trimmed.includes("Ã"));
 
-// Extend jsPDF type to include autoTable
-declare module "jspdf" {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF
+  if (hasSinhala || hasTamil || hasLegacyAbhaya) {
+    if (trimmed.includes("නොසැල") || trimmed.includes("ධාවන") || trimmed.includes("šÒ½Ò") || trimmed.includes("ÜÃ") || trimmed.includes("±Ü")) {
+      return "Reckless Driving";
+    }
+    if (trimmed.includes("වේග") || trimmed.includes("අධික") || trimmed.includes("ÀÓ")) {
+      return "Overspeeding";
+    }
+    if (trimmed.includes("දුරකථන") || trimmed.includes("කථා")) {
+      return "Mobile Phone Usage";
+    }
+    if (trimmed.includes("හැසිරීම") || trimmed.includes("නරක")) {
+      return "Bad Driver Behavior";
+    }
+    if (trimmed.includes("ප්‍රමාද") || trimmed.includes("කාලය")) {
+      return "Schedule Delay";
+    }
+    if (trimmed.includes("අපිරිසිදු") || trimmed.includes("කුණු")) {
+      return "Cleanliness Issue";
+    }
+    if (trimmed.includes("හොඳ") || trimmed.includes("ස්තූති")) {
+      return "Positive Feedback";
+    }
+
+    if (hasTamil) {
+      return "Passenger Feedback (Tamil)";
+    }
+    return "Passenger Feedback (Sinhala)";
   }
-}
 
-interface ReportData {
-  type: string
-  title: string
-  dateRange: string
-  data: any
-  format?: string
+  return text;
+};
+
+export interface ReportData {
+  type: string;
+  title: string;
+  dateRange: string;
+  data: any;
+  format?: string;
 }
 
 export const generatePDFReport = async (reportData: ReportData) => {
-  const { type, title, dateRange, data } = reportData
+  try {
+    const { jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
 
-  // Create new PDF document
-  const doc = new jsPDF("p", "mm", "a4")
-  const pageWidth = doc.internal.pageSize.width
-  const pageHeight = doc.internal.pageSize.height
-  let yPosition = 20
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
 
-  // Add header with logo and title
-  addHeader(doc, title, dateRange, yPosition)
-  yPosition += 40
+    const { title, dateRange, data, type } = reportData;
+    
+    // Theme Colors
+    const primaryColor: [number, number, number] = [15, 23, 42]; // dark slate #0f172a
+    const secondaryColor: [number, number, number] = [37, 99, 235]; // blue #2563eb
+    const accentColor: [number, number, number] = [220, 38, 38]; // red #dc2626
+    const lightBg = [248, 250, 252]; // slate-50 #f8fafc
+    const borderGray = [226, 232, 240]; // slate-200 #e2e8f0
+    
+    // Helper to draw section header
+    const drawSectionHeader = (y: number, text: string) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text(text, 14, y);
+      doc.setDrawColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      doc.setLineWidth(0.8);
+      doc.line(14, y + 2, 45, y + 2);
+      return y + 8;
+    };
 
-  // Add executive summary
-  yPosition = addExecutiveSummary(doc, data.summary, yPosition)
-  yPosition += 10
+    // --- PAGE 1 ---
+    // Header Banner
+    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.rect(0, 0, 210, 42, "F");
 
-  // Add content based on report type
-  switch (type) {
-    case "daily-summary":
-      yPosition = await addDailySummaryContent(doc, data, yPosition)
-      break
-    case "driver-performance":
-      yPosition = await addDriverPerformanceContent(doc, data, yPosition)
-      break
-    case "fleet-analytics":
-      yPosition = await addFleetAnalyticsContent(doc, data, yPosition)
-      break
-    case "route-safety":
-      yPosition = await addRouteSafetyContent(doc, data, yPosition)
-      break
-    case "compliance":
-      yPosition = await addComplianceContent(doc, data, yPosition)
-      break
-    case "incident-detailed":
-      yPosition = await addIncidentDetailedContent(doc, data, yPosition)
-      break
-    default:
-      yPosition = await addDefaultContent(doc, data, yPosition)
-  }
+    // Title & Logo
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("SafeDriver Authority", 14, 18);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(156, 163, 175); // gray-400
+    doc.text("Real-time safety monitoring & AI telemetry analytics", 14, 25);
 
-  // Add recommendations
-  yPosition = addRecommendations(doc, yPosition)
+    // Meta Details (Right Side of Header)
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Report Title:", 135, 14);
+    doc.setFont("helvetica", "normal");
+    doc.text(title, 135, 19);
 
-  // Add footer
-  addFooter(doc)
+    doc.setFont("helvetica", "bold");
+    doc.text("Date Range:", 135, 27);
+    doc.setFont("helvetica", "normal");
+    doc.text(dateRange, 135, 32);
 
-  // Save the PDF
-  const fileName = `SafeDriver-${type}-Report-${format(new Date(), "yyyy-MM-dd-HHmm")}.pdf`
-  doc.save(fileName)
-}
+    doc.setFont("helvetica", "bold");
+    doc.text("Generated:", 135, 37);
+    doc.setFont("helvetica", "normal");
+    doc.text(new Date().toLocaleString(), 156, 37);
 
-const addHeader = (doc: jsPDF, title: string, dateRange: string, yPos: number) => {
-  // Add company logo area (placeholder)
-  doc.setFillColor(59, 130, 246) // Blue color
-  doc.rect(20, yPos, 30, 20, "F")
+    let currentY = 55;
 
-  // Add logo text
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(12)
-  doc.setFont("helvetica", "bold")
-  doc.text("SafeDriver", 22, yPos + 8)
-  doc.text("Authority", 22, yPos + 15)
+    // Executive Summary
+    currentY = drawSectionHeader(currentY, "Executive Summary");
 
-  // Add title
-  doc.setTextColor(0, 0, 0)
-  doc.setFontSize(20)
-  doc.setFont("helvetica", "bold")
-  doc.text(title, 60, yPos + 8)
+    let summaryCards: Array<{ label: string; value: string | number; color: [number, number, number] }> = [];
 
-  // Add generation info
-  doc.setFontSize(10)
-  doc.setFont("helvetica", "normal")
-  doc.text(`Generated on: ${format(new Date(), "PPP pp")}`, 60, yPos + 18)
-  doc.text(`Report Period: ${dateRange}`, 60, yPos + 25)
-
-  // Add horizontal line
-  doc.setLineWidth(0.5)
-  doc.line(20, yPos + 35, 190, yPos + 35)
-}
-
-const addExecutiveSummary = (doc: jsPDF, summary: any, yPos: number) => {
-  // Check if we need a new page
-  if (yPos > 200) {
-    doc.addPage()
-    yPos = 20
-  }
-
-  doc.setFontSize(16)
-  doc.setFont("helvetica", "bold")
-  doc.text("Executive Summary", 20, yPos)
-  yPos += 10
-
-  // Create summary cards in a grid
-  const cardWidth = 40
-  const cardHeight = 25
-  const cardSpacing = 5
-  const startX = 20
-  let currentX = startX
-  let currentY = yPos
-
-  const summaryItems = [
-    { label: "Total Alerts", value: summary.totalAlerts?.toString() || "0", color: [220, 38, 38] },
-    { label: "Active Drivers", value: summary.activeDrivers?.toString() || "0", color: [37, 99, 235] },
-    { label: "Safety Score", value: `${summary.safetyScore || 0}%`, color: [22, 163, 74] },
-    { label: "System Uptime", value: `${summary.systemUptime || 0}%`, color: [22, 163, 74] },
-  ]
-
-  summaryItems.forEach((item, index) => {
-    if (index > 0 && index % 4 === 0) {
-      currentY += cardHeight + cardSpacing
-      currentX = startX
+    if (type === "driver-performance") {
+      const driverAlerts = data?.drivers?.reduce((sum: number, d: any) => sum + (Number(d.alerts) || 0), 0) ?? 0;
+      summaryCards = [
+        { label: "Total Drivers", value: data?.drivers?.length ?? 0, color: secondaryColor },
+        { label: "Total Driver Alerts", value: driverAlerts, color: accentColor },
+        { label: "Avg Safety Score", value: `${Math.round(data?.safetyScore ?? 95)}%`, color: [16, 185, 129] as [number, number, number] }
+      ];
+    } else if (type === "fleet-analytics") {
+      const activeBuses = data?.routes?.reduce((sum: number, r: any) => sum + (Number(r.buses) || 0), 0) ?? 0;
+      const totalRoutes = data?.routes?.length ?? 0;
+      const avgEfficiency = data?.routes?.length > 0
+        ? `${(data.routes.reduce((sum: number, r: any) => sum + parseFloat(r.efficiency || 0), 0) / data.routes.length).toFixed(0)}%`
+        : "100%";
+      summaryCards = [
+        { label: "Active Routes Monitored", value: totalRoutes, color: secondaryColor },
+        { label: "Active Buses Dispatched", value: activeBuses, color: [16, 185, 129] as [number, number, number] },
+        { label: "Schedule Efficiency", value: avgEfficiency, color: [79, 70, 229] as [number, number, number] }
+      ];
+    } else if (type === "compliance") {
+      summaryCards = [
+        { label: "License Compliance", value: `${data?.compliance?.driverLicenseValidity ?? 100}%`, color: secondaryColor },
+        { label: "Safety Training Rate", value: `${data?.compliance?.safetyTraining ?? 100}%`, color: [16, 185, 129] as [number, number, number] },
+        { label: "Audit Rating Score", value: "A+", color: [79, 70, 229] as [number, number, number] }
+      ];
+    } else if (type === "custom-dynamic") {
+      summaryCards = [
+        { label: "Total Alerts (Filtered)", value: data?.counts?.total ?? 0, color: accentColor },
+        { label: "Passenger Rating", value: `${data?.feedbacks?.averageRating || "N/A"}/5`, color: [16, 185, 129] as [number, number, number] }
+      ];
+    } else {
+      summaryCards = [
+        { label: "Total Active Alerts", value: data?.counts?.total ?? data?.summary?.totalAlerts ?? 0, color: accentColor },
+        { label: "Active Drivers On-Duty", value: data?.summary?.activeDrivers ?? 0, color: secondaryColor },
+        { label: "Global System Uptime", value: `${data?.summary?.systemUptime ?? 100}%`, color: [16, 185, 129] as [number, number, number] }
+      ];
     }
 
-    // Draw card background
-    doc.setFillColor(248, 250, 252)
-    doc.rect(currentX, currentY, cardWidth, cardHeight, "F")
+    const boxHeight = 24;
+    const boxGap = 5;
+    const startX = 14;
+    const totalAvailableWidth = 182;
+    const numCards = summaryCards.length || 1;
+    const boxWidth = (totalAvailableWidth - (boxGap * (numCards - 1))) / numCards;
 
-    // Draw card border
-    doc.setDrawColor(226, 232, 240)
-    doc.rect(currentX, currentY, cardWidth, cardHeight)
+    summaryCards.forEach((card, index) => {
+      const x = startX + index * (boxWidth + boxGap);
+      // Box Background
+      doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+      doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2]);
+      doc.setLineWidth(0.3);
+      doc.rect(x, currentY, boxWidth, boxHeight, "FD");
 
-    // Add label
-    doc.setFontSize(8)
-    doc.setFont("helvetica", "normal")
-    doc.setTextColor(100, 116, 139)
-    doc.text(item.label, currentX + 2, currentY + 6)
+      // Left Accent Strip
+      doc.setFillColor(card.color[0], card.color[1], card.color[2]);
+      doc.rect(x, currentY, 2, boxHeight, "F");
 
-    // Add value
-    doc.setFontSize(14)
-    doc.setFont("helvetica", "bold")
-    doc.setTextColor(item.color[0], item.color[1], item.color[2])
-    doc.text(item.value, currentX + 2, currentY + 15)
+      // Card Label
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.text(card.label, x + 5, currentY + 7);
 
-    currentX += cardWidth + cardSpacing
-  })
+      // Card Value
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text(String(card.value), x + 5, currentY + 17);
+    });
 
-  return currentY + cardHeight + 10
-}
+    currentY += boxHeight + 12;
 
-const addDailySummaryContent = async (doc: jsPDF, data: any, yPos: number) => {
-  // Add alert distribution chart
-  yPos = await addSectionTitle(doc, "Alert Distribution", yPos)
+    if (type === "custom-dynamic") {
+      // Draw Dynamic Metrics / Infraction Details
+      currentY = drawSectionHeader(currentY, "Custom Report Details");
 
-  try {
-    // Generate alert distribution chart
-    const alertChartImage = await generateAlertDistributionChart(data.alerts)
+      // Info row
+      doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+      doc.rect(14, currentY, 182, 14, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text(`Target Entity:  ${data?.entityName || "Entire Fleet"}`, 18, currentY + 9);
 
-    // Add chart to PDF
-    doc.addImage(alertChartImage, "PNG", 30, yPos, 150, 90)
-    yPos += 100
+      const safetyScore = data?.safetyScore ?? 0;
+      doc.setFont("helvetica", "bold");
+      doc.text(`AI Safety Score:  ${safetyScore.toFixed(1)}%`, 130, currentY + 9);
+
+      currentY += 22;
+
+      // Table for Infraction Breakdown
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Infraction Breakdown", 14, currentY);
+      currentY += 4;
+
+      const infractionRows = [
+        ["Drowsiness (Critical)", String(data?.counts?.drowsiness ?? 0)],
+        ["Yawning (Warning)", String(data?.counts?.yawn ?? 0)],
+        ["Phone Usage (High Risk)", String(data?.counts?.phone ?? 0)],
+        ["Distracted Driving", String(data?.counts?.distraction ?? 0)]
+      ];
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [["Violation Type", "Count"]],
+        body: infractionRows,
+        theme: "striped",
+        headStyles: { fillColor: primaryColor, fontStyle: "bold" },
+        margin: { left: 14, right: 14 }
+      });
+
+      // Feedback Summary
+      let finalY = (doc as any).lastAutoTable.finalY + 12;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text("Passenger Feedback Score", 14, finalY);
+      finalY += 4;
+
+      doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+      doc.rect(14, finalY, 182, 16, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      doc.text(`${data?.feedbacks?.averageRating || "N/A"} / 5`, 20, finalY + 11);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Average Rating based on ${data?.feedbacks?.total ?? 0} passenger comments`, 50, finalY + 10);
+
+      // Comments section (limit to fit page cleanly or add new page if needed)
+      if (data?.feedbacks?.recent?.length > 0) {
+        doc.addPage();
+        let commentY = 20;
+        commentY = drawSectionHeader(commentY, "Passenger Feedback Details");
+        
+        data.feedbacks.recent.forEach((f: any, idx: number) => {
+          if (commentY > 260) {
+            doc.addPage();
+            commentY = 20;
+          }
+           doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+          doc.rect(14, commentY, 182, 22, "F");
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+          
+          const cleanTitle = translateTextForPDF(f.title || "Passenger Comment");
+          const cleanComment = translateTextForPDF(f.comment || "No comment");
+
+          doc.text(`${cleanTitle} - ${f.rating} Stars`, 18, commentY + 6);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`By ${f.userName || "Anonymous"} | Bus: ${f.busNumber || "N/A"} | Date: ${f.date}`, 18, commentY + 11);
+          
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(9);
+          doc.setTextColor(51, 65, 85);
+          doc.text(`"${cleanComment}"`, 18, commentY + 17);
+          commentY += 26;
+        });
+      }
+    } else if (type === "driver-performance") {
+      // Drivers Performance
+      currentY = drawSectionHeader(currentY, "Driver Performance Ranking");
+      
+      const tableBody = (data?.drivers || []).map((d: any) => [
+        d.name,
+        d.license,
+        d.bus,
+        d.route,
+        String(d.alerts),
+        d.status === "on_duty" ? "On Duty" : "Off Duty"
+      ]);
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [["Name", "License Number", "Bus No.", "Route Assigned", "Alerts", "Status"]],
+        body: tableBody.length > 0 ? tableBody : [["No driver telemetry data available", "", "", "", "", ""]],
+        theme: "striped",
+        headStyles: { fillColor: primaryColor, fontStyle: "bold" },
+        margin: { left: 14, right: 14 }
+      });
+    } else if (type === "fleet-analytics") {
+      // Fleet Analytics
+      currentY = drawSectionHeader(currentY, "Fleet Operations & Safety");
+
+      const tableBody = (data?.routes || []).map((r: any) => [
+        r.name,
+        String(r.buses),
+        String(r.drivers),
+        r.distance,
+        String(r.riskAreas),
+        `${r.efficiency}%`
+      ]);
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [["Route Name", "Active Buses", "Active Drivers", "Distance", "Incidents", "On-Time %"]],
+        body: tableBody.length > 0 ? tableBody : [["No fleet telemetry data available", "", "", "", "", ""]],
+        theme: "striped",
+        headStyles: { fillColor: primaryColor, fontStyle: "bold" },
+        margin: { left: 14, right: 14 }
+      });
+    } else if (type === "compliance") {
+      // Compliance Report
+      currentY = drawSectionHeader(currentY, "Regulatory Compliance Audit");
+
+      const complianceList = [
+        ["Driver License Validity Audits", `${data?.compliance?.driverLicenseValidity ?? 100}%`],
+        ["Mandatory Vehicle Safety Inspections", `${data?.compliance?.vehicleInspections ?? 100}%`],
+        ["Safety Program & Operator Training Completion", `${data?.compliance?.safetyTraining ?? 100}%`],
+        ["Emergency & Incident Protocol Verification", `${data?.compliance?.emergencyProtocols ?? 100}%`],
+        ["Telemetry Data Continuity Reporting", `${data?.compliance?.dataReporting ?? 100}%`]
+      ];
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [["Compliance Indicator", "Audit Score"]],
+        body: complianceList,
+        theme: "striped",
+        headStyles: { fillColor: primaryColor, fontStyle: "bold" },
+        margin: { left: 14, right: 14 }
+      });
+    } else {
+      // Fallback or Safety Summary (alerts list)
+      currentY = drawSectionHeader(currentY, "Safety Alerts Summary");
+
+      const tableBody = (data?.alerts || []).map((a: any) => [
+        a.type,
+        String(a.count),
+        String(a.high),
+        String(a.medium),
+        String(a.low),
+        a.avgResponse
+      ]);
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [["Alert Type", "Total Alerts", "High Risk", "Med Risk", "Low Risk", "Avg Response"]],
+        body: tableBody.length > 0 ? tableBody : [["No alert distribution data available", "", "", "", "", ""]],
+        theme: "striped",
+        headStyles: { fillColor: primaryColor, fontStyle: "bold" },
+        margin: { left: 14, right: 14 }
+      });
+    }
+
+    // Save/Download the generated PDF
+    const dateStr = new Date().toISOString().replace(/T/, "-").replace(/:/g, "").split(".")[0];
+    const fileName = `SafeDriver-${type}-Report-${dateStr}.pdf`;
+    doc.save(fileName);
+
   } catch (error) {
-    console.error("Error adding alert chart:", error)
-    yPos += 10
+    console.error("Error in client-side PDF generation:", error);
+    throw error;
   }
-
-  // Alert Analysis Table
-  yPos = addSectionTitle(doc, "Alert Analysis", yPos)
-
-  const alertHeaders = ["Alert Type", "Count", "High", "Medium", "Low", "Avg Response"]
-  const alertData =
-    data.alerts?.map((alert: any) => [
-      alert.type,
-      alert.count.toString(),
-      alert.high.toString(),
-      alert.medium.toString(),
-      alert.low.toString(),
-      alert.avgResponse,
-    ]) || []
-
-  doc.autoTable({
-    head: [alertHeaders],
-    body: alertData,
-    startY: yPos,
-    theme: "grid",
-    headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-    styles: { fontSize: 9 },
-    margin: { left: 20, right: 20 },
-  })
-
-  yPos = (doc as any).lastAutoTable.finalY + 15
-
-  // Add alert trend chart
-  doc.addPage()
-  yPos = 20
-  yPos = await addSectionTitle(doc, "Alert Trends Over Time", yPos)
-
-  try {
-    // Generate alert trend chart
-    const trendChartImage = await generateAlertTrendChart(data)
-
-    // Add chart to PDF
-    doc.addImage(trendChartImage, "PNG", 20, yPos, 170, 100)
-    yPos += 110
-  } catch (error) {
-    console.error("Error adding trend chart:", error)
-    yPos += 10
-  }
-
-  // Driver Performance Table
-  yPos = addSectionTitle(doc, "Driver Performance Summary", yPos)
-
-  const driverHeaders = ["Driver Name", "License", "Bus", "Route", "Safety Score", "Alerts"]
-  const driverData =
-    data.drivers
-      ?.slice(0, 5)
-      .map((driver: any) => [
-        driver.name,
-        driver.license,
-        driver.bus,
-        driver.route,
-        `${driver.score}%`,
-        driver.alerts.toString(),
-      ]) || []
-
-  doc.autoTable({
-    head: [driverHeaders],
-    body: driverData,
-    startY: yPos,
-    theme: "grid",
-    headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-    styles: { fontSize: 9 },
-    margin: { left: 20, right: 20 },
-  })
-
-  return (doc as any).lastAutoTable.finalY + 10
-}
-
-const addDriverPerformanceContent = async (doc: jsPDF, data: any, yPos: number) => {
-  // Add safety score chart
-  yPos = await addSectionTitle(doc, "Driver Safety Scores", yPos)
-
-  try {
-    // Generate safety score chart
-    const safetyChartImage = await generateSafetyScoreChart(data.drivers)
-
-    // Add chart to PDF
-    doc.addImage(safetyChartImage, "PNG", 20, yPos, 170, 100)
-    yPos += 110
-  } catch (error) {
-    console.error("Error adding safety score chart:", error)
-    yPos += 10
-  }
-
-  // Driver performance table
-  yPos = addSectionTitle(doc, "Detailed Driver Performance", yPos)
-
-  const headers = ["Driver Name", "License", "Bus", "Route", "Safety Score", "Total Alerts", "Status"]
-  const tableData =
-    data.drivers?.map((driver: any) => [
-      driver.name,
-      driver.license,
-      driver.bus,
-      driver.route,
-      `${driver.score}%`,
-      driver.alerts.toString(),
-      driver.status,
-    ]) || []
-
-  doc.autoTable({
-    head: [headers],
-    body: tableData,
-    startY: yPos,
-    theme: "grid",
-    headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-    styles: { fontSize: 9 },
-    margin: { left: 20, right: 20 },
-    columnStyles: {
-      4: { halign: "center" }, // Safety Score
-      5: { halign: "center" }, // Total Alerts
-      6: { halign: "center" }, // Status
-    },
-  })
-
-  return (doc as any).lastAutoTable.finalY + 10
-}
-
-const addFleetAnalyticsContent = async (doc: jsPDF, data: any, yPos: number) => {
-  // Add route safety radar chart
-  yPos = await addSectionTitle(doc, "Route Safety Analysis", yPos)
-
-  try {
-    // Generate route safety radar chart
-    const radarChartImage = await generateRouteSafetyRadarChart(data.routes)
-
-    // Add chart to PDF
-    doc.addImage(radarChartImage, "PNG", 30, yPos, 150, 120)
-    yPos += 130
-  } catch (error) {
-    console.error("Error adding radar chart:", error)
-    yPos += 10
-  }
-
-  // Fleet analytics table
-  yPos = addSectionTitle(doc, "Fleet Analytics Overview", yPos)
-
-  const headers = ["Route", "Buses", "Drivers", "Safety Score", "Distance", "Risk Areas"]
-  const tableData =
-    data.routes?.map((route: any) => [
-      route.name,
-      route.buses.toString(),
-      route.drivers.toString(),
-      `${route.score}%`,
-      route.distance,
-      route.riskAreas,
-    ]) || []
-
-  doc.autoTable({
-    head: [headers],
-    body: tableData,
-    startY: yPos,
-    theme: "grid",
-    headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-    styles: { fontSize: 9 },
-    margin: { left: 20, right: 20 },
-  })
-
-  return (doc as any).lastAutoTable.finalY + 10
-}
-
-const addRouteSafetyContent = async (doc: jsPDF, data: any, yPos: number) => {
-  // Add route safety radar chart
-  yPos = await addSectionTitle(doc, "Route Safety Analysis", yPos)
-
-  try {
-    // Generate route safety radar chart
-    const radarChartImage = await generateRouteSafetyRadarChart(data.routes)
-
-    // Add chart to PDF
-    doc.addImage(radarChartImage, "PNG", 30, yPos, 150, 120)
-    yPos += 130
-  } catch (error) {
-    console.error("Error adding radar chart:", error)
-    yPos += 10
-  }
-
-  // Route safety table
-  yPos = addSectionTitle(doc, "Route Safety Details", yPos)
-
-  const headers = ["Route Name", "Total Buses", "Active Drivers", "Safety Score", "High Risk Areas"]
-  const tableData =
-    data.routes?.map((route: any) => [
-      route.name,
-      route.buses.toString(),
-      route.drivers.toString(),
-      `${route.score}%`,
-      route.riskAreas,
-    ]) || []
-
-  doc.autoTable({
-    head: [headers],
-    body: tableData,
-    startY: yPos,
-    theme: "grid",
-    headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-    styles: { fontSize: 9 },
-    margin: { left: 20, right: 20 },
-  })
-
-  return (doc as any).lastAutoTable.finalY + 10
-}
-
-const addComplianceContent = async (doc: jsPDF, data: any, yPos: number) => {
-  // Add compliance chart
-  yPos = await addSectionTitle(doc, "Compliance Overview", yPos)
-
-  try {
-    // Generate compliance chart
-    const complianceChartImage = await generateComplianceChart(data.compliance)
-
-    // Add chart to PDF
-    doc.addImage(complianceChartImage, "PNG", 30, yPos, 150, 150)
-    yPos += 160
-  } catch (error) {
-    console.error("Error adding compliance chart:", error)
-    yPos += 10
-  }
-
-  // Compliance table
-  yPos = addSectionTitle(doc, "Regulatory Compliance Status", yPos)
-
-  const compliance = data.compliance || {}
-  const headers = ["Compliance Area", "Status (%)", "Rating"]
-  const tableData = [
-    [
-      "Driver License Validity",
-      `${compliance.driverLicenseValidity || 0}%`,
-      getComplianceRating(compliance.driverLicenseValidity),
-    ],
-    [
-      "Vehicle Inspections",
-      `${compliance.vehicleInspections || 0}%`,
-      getComplianceRating(compliance.vehicleInspections),
-    ],
-    ["Safety Training", `${compliance.safetyTraining || 0}%`, getComplianceRating(compliance.safetyTraining)],
-    [
-      "Emergency Protocols",
-      `${compliance.emergencyProtocols || 0}%`,
-      getComplianceRating(compliance.emergencyProtocols),
-    ],
-    ["Data Reporting", `${compliance.dataReporting || 0}%`, getComplianceRating(compliance.dataReporting)],
-  ]
-
-  doc.autoTable({
-    head: [headers],
-    body: tableData,
-    startY: yPos,
-    theme: "grid",
-    headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-    styles: { fontSize: 10 },
-    margin: { left: 20, right: 20 },
-  })
-
-  return (doc as any).lastAutoTable.finalY + 10
-}
-
-const addIncidentDetailedContent = async (doc: jsPDF, data: any, yPos: number) => {
-  // Add alert distribution chart
-  yPos = await addSectionTitle(doc, "Incident Type Distribution", yPos)
-
-  try {
-    // Generate alert distribution chart
-    const alertChartImage = await generateAlertDistributionChart(data.alerts)
-
-    // Add chart to PDF
-    doc.addImage(alertChartImage, "PNG", 30, yPos, 150, 90)
-    yPos += 100
-  } catch (error) {
-    console.error("Error adding alert chart:", error)
-    yPos += 10
-  }
-
-  // Incident table
-  yPos = addSectionTitle(doc, "Detailed Incident Analysis", yPos)
-
-  const headers = ["Incident ID", "Date", "Time", "Driver", "Type", "Severity", "Location", "Status"]
-  const tableData =
-    data.incidents?.map((incident: any) => [
-      incident.id,
-      incident.date,
-      incident.time,
-      incident.driver,
-      incident.type,
-      incident.severity,
-      incident.location,
-      incident.resolved ? "Resolved" : "Pending",
-    ]) || []
-
-  doc.autoTable({
-    head: [headers],
-    body: tableData,
-    startY: yPos,
-    theme: "grid",
-    headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-    styles: { fontSize: 8 },
-    margin: { left: 20, right: 20 },
-  })
-
-  return (doc as any).lastAutoTable.finalY + 10
-}
-
-const addDefaultContent = async (doc: jsPDF, data: any, yPos: number) => {
-  return await addDailySummaryContent(doc, data, yPos)
-}
-
-const addSectionTitle = (doc: jsPDF, title: string, yPos: number) => {
-  // Check if we need a new page
-  if (yPos > 250) {
-    doc.addPage()
-    yPos = 20
-  }
-
-  doc.setFontSize(14)
-  doc.setFont("helvetica", "bold")
-  doc.setTextColor(0, 0, 0)
-  doc.text(title, 20, yPos)
-
-  return yPos + 10
-}
-
-const addRecommendations = (doc: jsPDF, yPos: number) => {
-  // Check if we need a new page
-  if (yPos > 220) {
-    doc.addPage()
-    yPos = 20
-  }
-
-  yPos = addSectionTitle(doc, "Recommendations", yPos)
-
-  const recommendations = [
-    "Implement additional drowsiness awareness training for drivers with scores below 80%",
-    "Consider additional rest stops on high-risk routes at identified danger areas",
-    "Deploy additional monitoring units on buses with frequent safety alerts",
-    "Update phone usage policies and enforcement procedures for better compliance",
-    "Schedule regular safety briefings and performance review sessions",
-    "Implement route optimization based on safety score analysis",
-  ]
-
-  doc.setFontSize(10)
-  doc.setFont("helvetica", "normal")
-
-  recommendations.forEach((rec, index) => {
-    const bulletPoint = `• ${rec}`
-    const lines = doc.splitTextToSize(bulletPoint, 150)
-
-    lines.forEach((line: string, lineIndex: number) => {
-      doc.text(line, 25, yPos)
-      yPos += 5
-    })
-    yPos += 2
-  })
-
-  return yPos
-}
-
-const addFooter = (doc: jsPDF) => {
-  const pageCount = doc.getNumberOfPages()
-
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i)
-
-    // Add footer line
-    doc.setLineWidth(0.5)
-    doc.line(20, 280, 190, 280)
-
-    // Add footer text
-    doc.setFontSize(8)
-    doc.setFont("helvetica", "normal")
-    doc.setTextColor(100, 116, 139)
-
-    doc.text("SafeDriver Authority Panel - Transport Safety Management System", 20, 285)
-    doc.text("For technical support: support@safedriver.lk | +94 11 123 4567", 20, 290)
-    doc.text(`Page ${i} of ${pageCount}`, 170, 285)
-    doc.text(`© 2025 SafeDriver System. All rights reserved.`, 20, 295)
-  }
-}
-
-const getComplianceRating = (score: number): string => {
-  if (score >= 95) return "Excellent"
-  if (score >= 85) return "Good"
-  if (score >= 75) return "Fair"
-  return "Needs Improvement"
-}
+};

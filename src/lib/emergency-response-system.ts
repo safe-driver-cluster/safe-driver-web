@@ -1,6 +1,5 @@
 "use client"
 
-import { VoiceAlertManager } from "./voice-alert-manager"
 import { NotificationManager } from "./notification-manager"
 
 export interface EmergencyContact {
@@ -28,7 +27,7 @@ export interface EmergencyProtocol {
 
 export interface EmergencyAction {
   id: string
-  type: "notify_contact" | "call_emergency_services" | "send_sms" | "voice_alert" | "dispatch_vehicle" | "log_incident"
+  type: "notify_contact" | "call_emergency_services" | "send_sms" | "dispatch_vehicle" | "log_incident"
   description: string
   delay: number // Delay in seconds before executing
   parameters: Record<string, any>
@@ -114,14 +113,7 @@ export class EmergencyResponseSystem {
             parameters: { contactId: "fleet_manager", method: "call" },
             isAutomatic: true,
           },
-          {
-            id: "voice_alert_critical",
-            type: "voice_alert",
-            description: "Broadcast critical voice alert",
-            delay: 0,
-            parameters: { message: "Medical emergency detected", priority: "critical" },
-            isAutomatic: true,
-          },
+
         ],
       },
       {
@@ -162,14 +154,7 @@ export class EmergencyResponseSystem {
         contacts: ["fleet_manager", "safety_supervisor"],
         requiresConfirmation: false,
         actions: [
-          {
-            id: "immediate_voice_alert",
-            type: "voice_alert",
-            description: "Immediate wake-up alert",
-            delay: 0,
-            parameters: { message: "Driver, please pull over immediately", priority: "critical", repeat: 3 },
-            isAutomatic: true,
-          },
+
           {
             id: "contact_driver",
             type: "notify_contact",
@@ -198,14 +183,7 @@ export class EmergencyResponseSystem {
             parameters: { service: "roadside_assistance", priority: "medium" },
             isAutomatic: true,
           },
-          {
-            id: "notify_passengers",
-            type: "voice_alert",
-            description: "Inform passengers of situation",
-            delay: 60,
-            parameters: { message: "Vehicle assistance is on the way", priority: "normal" },
-            isAutomatic: true,
-          },
+
         ],
       },
       {
@@ -218,14 +196,7 @@ export class EmergencyResponseSystem {
         contacts: ["fleet_manager", "safety_supervisor"],
         requiresConfirmation: true,
         actions: [
-          {
-            id: "weather_voice_alert",
-            type: "voice_alert",
-            description: "Weather safety alert",
-            delay: 0,
-            parameters: { message: "Severe weather detected. Drive with extreme caution", priority: "high" },
-            isAutomatic: true,
-          },
+
           {
             id: "route_advisory",
             type: "notify_contact",
@@ -400,9 +371,7 @@ export class EmergencyResponseSystem {
       console.log(`Executing emergency action: ${action.description}`)
 
       switch (action.type) {
-        case "voice_alert":
-          await this.executeVoiceAlert(action, incident)
-          break
+
         case "notify_contact":
           await this.executeNotifyContact(action, incident)
           break
@@ -436,18 +405,7 @@ export class EmergencyResponseSystem {
     }
   }
 
-  // Execute voice alert action
-  private async executeVoiceAlert(action: EmergencyAction, incident: EmergencyIncident): Promise<void> {
-    const alertManager = VoiceAlertManager.getInstance()
-    const { message, priority, repeat } = action.parameters
 
-    const alert = VoiceAlertManager.createCriticalAlert(message, {
-      repeat: repeat || 1,
-      interval: 10000,
-    })
-
-    alertManager.addAlert(alert)
-  }
 
   // Execute notify contact action
   private async executeNotifyContact(action: EmergencyAction, incident: EmergencyIncident): Promise<void> {
@@ -563,14 +521,7 @@ export class EmergencyResponseSystem {
       data: { incidentId: incident.id, escalated: true },
     })
 
-    // Voice alert for escalation
-    const alertManager = VoiceAlertManager.getInstance()
-    alertManager.addAlert(
-      VoiceAlertManager.createCriticalAlert(
-        `Emergency incident ${incident.id} has been escalated. Immediate response required.`,
-        { repeat: 5, interval: 15000 },
-      ),
-    )
+
   }
 
   // Acknowledge incident

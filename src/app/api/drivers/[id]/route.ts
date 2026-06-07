@@ -17,11 +17,10 @@ const updateDriverSchema = z.object({
   email: z.string().email().optional(),
   busNumber: z.string().optional(),
   route: z.string().optional(),
-  status: z.enum(["on_duty", "off_duty", "suspended", "on_break"]).optional(),
+  status: z.enum(["on_duty", "off_duty", "suspended"]).optional(),
   address: z.string().optional(),
   experience: z.string().optional(),
   alertCount: z.number().min(0).optional(),
-  safetyScore: z.number().min(0).max(100).optional(),
   lastAlert: z.string().optional(),
 })
 
@@ -50,7 +49,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const validationResult = updateDriverSchema.safeParse(body)
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Validation failed", details: validationResult.error.errors },
+        { error: "Validation failed", details: validationResult.error.issues },
         { status: 400 },
       )
     }

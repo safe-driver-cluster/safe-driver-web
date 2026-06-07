@@ -10,14 +10,26 @@ const routeStopSchema = z.object({
   longitude: z.number().optional(),
 })
 
+const hazardZoneSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  location: z.string().min(1),
+  latitude: z.number(),
+  longitude: z.number(),
+  type: z.enum(["accident", "other"]).default("accident"),
+  radius: z.number().min(0).default(200),
+})
+
 const createRouteSchema = z.object({
   name: z.string().min(1, "Name is required"),
+  busNumber: z.string().optional(),
   startPoint: z.string().min(1, "Start point is required"),
   endPoint: z.string().min(1, "End point is required"),
   distance: z.number().min(0, "Distance must be positive"),
   estimatedTime: z.number().min(0, "Estimated time must be positive"),
   stops: z.array(routeStopSchema).min(2, "At least 2 stops are required"),
   vehicles: z.array(z.string()).optional(),
+  hazardZones: z.array(hazardZoneSchema).optional(),
 })
 
 // GET /api/routes - Get all routes with optional filters
@@ -56,7 +68,7 @@ export async function POST(request: NextRequest) {
     const validationResult = createRouteSchema.safeParse(body)
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Validation failed", details: validationResult.error.errors },
+        { error: "Validation failed", details: validationResult.error.issues },
         { status: 400 },
       )
     }

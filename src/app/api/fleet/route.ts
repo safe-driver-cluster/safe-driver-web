@@ -29,13 +29,15 @@ const createVehicleSchema = z.object({
     .number({
       required_error: "Year is required",
       invalid_type_error: "Year must be a valid number",
-    })
+    } as any)
     .int("Year must be a whole number")
     .min(1900, `Year must be between 1900 and ${new Date().getFullYear() + 1}`)
     .max(new Date().getFullYear() + 1, `Year cannot be greater than ${new Date().getFullYear() + 1}`),
   driverId: z.string().optional(),
   driverName: z.string().max(100, "Driver name must be 100 characters or less").optional(),
   route: z.string().max(200, "Route must be 200 characters or less").optional(),
+  routeId: z.string().optional(),
+  locationDepot: z.string().optional(),
   documentId: z
     .preprocess(
       (val) => (val === "" || val === null || val === undefined ? undefined : val),
@@ -53,9 +55,9 @@ const createVehicleSchema = z.object({
       address: z.string(),
     })
     .optional(),
-  fuel: z.number().min(0, "Fuel level cannot be negative").max(100, "Fuel level cannot exceed 100%").optional(),
+
   mileage: z.number().min(0, "Mileage cannot be negative").optional(),
-  status: z.enum(["active", "maintenance", "inactive"]).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
 })
 
 // GET /api/fleet - Get all vehicles with optional filters
@@ -65,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     const filters = {
       status: searchParams.get("status") || undefined,
-      maintenanceStatus: searchParams.get("maintenanceStatus") || undefined,
+
       search: searchParams.get("search") || undefined,
       driverId: searchParams.get("driverId") || undefined,
     }
@@ -106,21 +108,21 @@ export async function POST(request: NextRequest) {
     const validationResult = createVehicleSchema.safeParse(body)
     if (!validationResult.success) {
       // Format validation errors into user-friendly messages
-      const errorMessages = validationResult.error.errors.map((err) => {
+      const errorMessages = validationResult.error.issues.map((err: any) => {
         const field = err.path.join(".")
         return `${field.charAt(0).toUpperCase() + field.slice(1)}: ${err.message}`
       })
 
-      const mainError = errorMessages.length === 1 
+      const mainError = errorMessages.length === 1
         ? errorMessages[0]
         : `Please fix the following errors:\n${errorMessages.join("\n")}`
 
       return NextResponse.json(
-        { 
+        {
           error: "Validation failed",
           message: mainError,
-          details: validationResult.error.errors,
-          fields: validationResult.error.errors.reduce((acc, err) => {
+          details: validationResult.error.issues,
+          fields: validationResult.error.issues.reduce((acc: any, err: any) => {
             const field = err.path.join(".")
             acc[field] = err.message
             return acc

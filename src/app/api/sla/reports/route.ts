@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
+export const dynamic = "force-dynamic"
+
 const reportQuerySchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
@@ -165,7 +167,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ success: false, error: "Validation error", details: error.errors }, { status: 400 })
+      return NextResponse.json({ success: false, error: "Validation error", details: error.issues }, { status: 400 })
     }
     console.error("Error generating SLA report:", error)
     return NextResponse.json({ success: false, error: "Failed to generate SLA report" }, { status: 500 })

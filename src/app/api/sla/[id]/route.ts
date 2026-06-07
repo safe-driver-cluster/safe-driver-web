@@ -13,6 +13,7 @@ const updateSlaSchema = z.object({
       enabled: z.boolean(),
       timezone: z.string(),
       schedule: z.record(
+        z.string(),
         z.object({
           start: z.string(),
           end: z.string(),
@@ -137,7 +138,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ success: false, error: "Validation error", details: error.errors }, { status: 400 })
+      return NextResponse.json({ success: false, error: "Validation error", details: error.issues }, { status: 400 })
     }
     console.error("Error updating SLA rule:", error)
     return NextResponse.json({ success: false, error: "Failed to update SLA rule" }, { status: 500 })

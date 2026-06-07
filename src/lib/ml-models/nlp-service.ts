@@ -74,7 +74,7 @@ export class NLPService {
 
   private async extractEntities(text: string) {
     // Named Entity Recognition using advanced NLP models
-    const entities = []
+    const entities: any[] = []
     const patterns = [
       { pattern: /\b\d{1,2}\s+CFR\s+\d+(\.\d+)?\b/gi, label: "REGULATION" },
       { pattern: /\b(FMCSA|DOT|NHTSA|EPA)\b/gi, label: "AGENCY" },
@@ -115,7 +115,7 @@ export class NLPService {
       "audit trail",
     ]
 
-    const keywords = []
+    const keywords: any[] = []
     const words = text.toLowerCase()
 
     domainKeywords.forEach((keyword) => {
@@ -165,7 +165,7 @@ export class NLPService {
       },
     ]
 
-    const topics = []
+    const topics: any[] = []
     topicPatterns.forEach(({ topic, keywords, pattern }) => {
       const matches = text.match(pattern)
       if (matches) {
@@ -257,7 +257,7 @@ export class NLPService {
       },
     ]
 
-    const indicators = []
+    const indicators: any[] = []
     changePatterns.forEach(({ type, patterns }) => {
       patterns.forEach((pattern) => {
         const matches = text.match(pattern)

@@ -115,70 +115,6 @@ export const generateAlertDistributionChart = async (alerts: any[]): Promise<str
   })
 }
 
-/**
- * Generates a safety score comparison bar chart
- */
-export const generateSafetyScoreChart = async (drivers: any[]): Promise<string> => {
-  const sortedDrivers = [...drivers].sort((a, b) => b.score - a.score)
-  const driverNames = sortedDrivers.map((driver) => driver.name.split(" ")[0])
-  const safetyScores = sortedDrivers.map((driver) => driver.score)
-
-  return generateChartImage({
-    type: "bar",
-    width: 600,
-    height: 350,
-    data: {
-      labels: driverNames,
-      datasets: [
-        {
-          label: "Safety Score (%)",
-          data: safetyScores,
-          backgroundColor: safetyScores.map((score) => {
-            if (score >= 90) return "rgba(16, 185, 129, 0.8)"
-            if (score >= 80) return "rgba(59, 130, 246, 0.8)"
-            if (score >= 70) return "rgba(234, 179, 8, 0.8)"
-            return "rgba(220, 38, 38, 0.8)"
-          }),
-          borderColor: safetyScores.map((score) => {
-            if (score >= 90) return "rgba(16, 185, 129, 1)"
-            if (score >= 80) return "rgba(59, 130, 246, 1)"
-            if (score >= 70) return "rgba(234, 179, 8, 1)"
-            return "rgba(220, 38, 38, 1)"
-          }),
-          borderWidth: 1,
-        },
-      ],
-    },
-    options: {
-      scales: {
-        y: {
-          beginAtZero: true,
-          max: 100,
-          title: {
-            display: true,
-            text: "Safety Score (%)",
-          },
-        },
-        x: {
-          title: {
-            display: true,
-            text: "Drivers",
-          },
-        },
-      },
-      plugins: {
-        title: {
-          display: true,
-          text: "Driver Safety Score Comparison",
-          font: {
-            size: 16,
-            weight: "bold",
-          },
-        },
-      },
-    },
-  })
-}
 
 /**
  * Generates a line chart for alert trends over time
@@ -264,11 +200,11 @@ export const generateRouteSafetyRadarChart = async (routes: any[]): Promise<stri
     width: 500,
     height: 400,
     data: {
-      labels: ["Safety Score", "Driver Rating", "Road Condition", "Incident Rate", "Compliance"],
+      labels: ["Efficiency Score", "Driver Rating", "Road Condition", "Incident Rate", "Compliance"],
       datasets: topRoutes.map((route, index) => ({
         label: routeNames[index],
         data: [
-          route.score,
+          route.efficiency || 85,
           Math.floor(Math.random() * 20) + 80,
           Math.floor(Math.random() * 30) + 70,
           100 - Math.floor(Math.random() * 20) - index * 5,

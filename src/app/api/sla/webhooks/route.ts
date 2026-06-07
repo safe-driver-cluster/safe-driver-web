@@ -18,7 +18,7 @@ const webhookSchema = z.object({
   ),
   isActive: z.boolean().default(true),
   secret: z.string().optional(),
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
   retryPolicy: z
     .object({
       maxRetries: z.number().min(0).max(10).default(3),
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
     )
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ success: false, error: "Validation error", details: error.errors }, { status: 400 })
+      return NextResponse.json({ success: false, error: "Validation error", details: error.issues }, { status: 400 })
     }
     console.error("Error creating webhook:", error)
     return NextResponse.json({ success: false, error: "Failed to create webhook" }, { status: 500 })

@@ -5,14 +5,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Car, Users, AlertTriangle, CheckCircle, Activity, Shield, Bell, TrendingUp, MapPin, Clock, MessageSquare, Star } from "lucide-react"
+import { Car, Users, AlertTriangle, CheckCircle, Activity, Shield, Bell, TrendingUp, MapPin, Clock, MessageSquare, Star, FileText } from "lucide-react"
 import Link from "next/link"
-import { useLiveAlerts } from "@/hooks/use-live-alerts"
+import { useLiveAlerts, isToday, parseTimestamp, isWithinLast24Hours, isWithinLast30Days } from "@/hooks/use-live-alerts"
+import { useLanguage } from "@/components/language-provider"
+import { SafetyScoreCard } from "@/components/safety-score-card"
+import { RiskLevelCard } from "@/components/risk-level-card"
+import { calculateSafetyScore, calculateSafetyTrend } from "@/lib/safety-score"
 
 // Helper function to format relative time
-const formatRelativeTime = (timestamp: string | number): string => {
-  if (!timestamp) return "Unknown"
-  
+const formatRelativeTime = (timestamp: string | number, t: (key: string) => string): string => {
+  if (!timestamp) return t("unknown")
+
   const timestampMs = typeof timestamp === "string" ? new Date(timestamp).getTime() : timestamp
   const now = Date.now()
   const diffMs = now - timestampMs
@@ -22,13 +26,13 @@ const formatRelativeTime = (timestamp: string | number): string => {
   const diffDays = Math.floor(diffHours / 24)
 
   if (diffSeconds < 60) {
-    return `${diffSeconds} second${diffSeconds !== 1 ? "s" : ""} ago`
+    return `${diffSeconds} ${t("seconds_ago")}`
   } else if (diffMinutes < 60) {
-    return `${diffMinutes} minute${diffMinutes !== 1 ? "s" : ""} ago`
+    return `${diffMinutes} ${t("minutes_ago")}`
   } else if (diffHours < 24) {
-    return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`
+    return `${diffHours} ${t("hours_ago")}`
   } else {
-    return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`
+    return `${diffDays} ${t("days_ago")}`
   }
 }
 
@@ -47,9 +51,10 @@ const getAlertDisplay = (alert: any) => {
 }
 
 export default function HomePage() {
+  const { t } = useLanguage()
   // Get real-time alerts from Firebase (including history)
   const { alerts: liveAlerts, historyAlerts, isLoading: isLoadingAlerts } = useLiveAlerts()
-  
+
   // Driver stats state
   const [driverStats, setDriverStats] = useState({
     total: 0,
@@ -142,78 +147,45 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [])
 
-  // Helper function to check if alert is from today
-  const isToday = (timestamp: string | number | undefined): boolean => {
-    if (!timestamp) return false
-    
-    try {
-      // Get today's date at midnight for accurate comparison
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      
-      // Handle both string and number timestamps
-      let alertTimestamp: number
-      if (typeof timestamp === "string") {
-        alertTimestamp = new Date(timestamp).getTime()
-      } else if (typeof timestamp === "number") {
-        // If it's a number, check if it's in seconds or milliseconds
-        alertTimestamp = timestamp < 10000000000 ? timestamp * 1000 : timestamp
-      } else {
-        return false
-      }
-      
-      // Check if timestamp is valid
-      if (isNaN(alertTimestamp)) return false
-      
-      const alertDate = new Date(alertTimestamp)
-      alertDate.setHours(0, 0, 0, 0)
-      
-      // Compare dates
-      return alertDate.getTime() === today.getTime()
-    } catch (error) {
-      console.error("Error parsing alert timestamp:", timestamp, error)
-      return false
-    }
-  }
 
   // Calculate stats from real-time data
   const fleetStats = useMemo(() => {
-    // Get today's alerts from both live and history (same logic as alerts page history tab)
-    const todayLiveAlerts = liveAlerts.filter((alert) => isToday(alert.timestamp))
-    const todayHistoryAlerts = historyAlerts.filter((alert) => isToday(alert.timestamp))
-    
-    // Combine today's alerts and remove duplicates based on alert ID
-    const combinedTodayAlerts = [...todayLiveAlerts, ...todayHistoryAlerts]
-    const uniqueTodayAlerts = combinedTodayAlerts.filter((alert, index, self) =>
+    // Combine all alerts and remove duplicates based on alert ID
+    const combinedAlerts = [...liveAlerts, ...historyAlerts]
+    const uniqueAlerts = combinedAlerts.filter((alert, index, self) =>
       index === self.findIndex((a) => a.id === alert.id)
     )
-    
-    // Calculate today's alert counts
-    const todayAlerts = uniqueTodayAlerts.length
-    const todayActiveAlerts = uniqueTodayAlerts.filter((a) => a.status === "active").length
-    const todayResolvedAlerts = uniqueTodayAlerts.filter((a) => a.status === "resolved").length
+
+    // Today's alerts (scoped to calendar today or last 24 hours)
+    const todayAlertsList = uniqueAlerts.filter(
+      (alert) => isToday(alert.timestamp) || isWithinLast24Hours(alert.timestamp)
+    )
+
+    // Calculate today's / active alert counts
+    const todayAlertsCount = todayAlertsList.length
+    const todayActiveAlerts = todayAlertsList.filter((a) => a.status === "active").length
+    const todayResolvedAlerts = todayAlertsList.filter((a) => a.status === "resolved").length
+
+    // Safety score is calculated based on ALL alerts from the last 30 days
+    const alertsLast30Days = uniqueAlerts.filter((alert) => isWithinLast30Days(alert.timestamp))
+    const safetyScore = calculateSafetyScore(alertsLast30Days)
+    const safetyTrend = calculateSafetyTrend(safetyScore)
 
     // Get fleet statistics from fleet management
     const totalVehicles = fleetVehicles.length || 0
     const activeVehicles = fleetVehicles.filter((v) => v.status === "active").length || 0
-    
-    // Calculate safety score based on alerts (fewer alerts = higher score)
-    const totalAlerts = liveAlerts.length
-    const highSeverityAlerts = liveAlerts.filter((a) => a.severity === "high").length
-    const safetyScore = totalAlerts > 0 
-      ? Math.max(0, Math.min(100, 100 - (highSeverityAlerts * 10) - (totalAlerts * 2)))
-      : 100
 
     return {
       totalVehicles,
       activeVehicles,
       driversOnDuty: driverStats.onDuty || 0,
       totalDrivers: driverStats.total || 0,
-      alertsToday: todayAlerts,
+      alertsToday: todayAlertsCount,
       todayActiveAlerts,
       todayResolvedAlerts,
-      safetyScore: Math.round(safetyScore),
-      complianceRate: 96, // This would need to come from another data source
+      complianceRate: 96,
+      safetyScore,
+      safetyTrend,
     }
   }, [liveAlerts, historyAlerts, driverStats, fleetVehicles])
 
@@ -258,10 +230,10 @@ export default function HomePage() {
           statusColor,
           rating: item.rating?.overall || null,
           busNumber: item.busNumber || "N/A",
-          time: formatRelativeTime(item.timestamp || Date.now()),
+          time: formatRelativeTime(item.timestamp || Date.now(), t),
         }
       })
-  }, [feedback])
+  }, [feedback, t])
 
   // Get recent alerts (latest 3, sorted by timestamp)
   const recentAlerts = useMemo(() => {
@@ -270,49 +242,72 @@ export default function HomePage() {
     }
 
     return liveAlerts
+      .filter((alert) => isToday(alert.timestamp) || isWithinLast24Hours(alert.timestamp))
       .sort((a, b) => {
-        const timeA = a.timestamp ? (typeof a.timestamp === "string" ? new Date(a.timestamp).getTime() : a.timestamp) : 0
-        const timeB = b.timestamp ? (typeof b.timestamp === "string" ? new Date(b.timestamp).getTime() : b.timestamp) : 0
-        return timeB - timeA
+        const getTime = (ts: any) => {
+          if (!ts) return 0
+          if (typeof ts === "number") return ts < 10000000000 ? ts * 1000 : ts
+          if (typeof ts === "string") {
+            if (/^\d+$/.test(ts)) return Number(ts)
+            const parsed = new Date(ts).getTime()
+            return isNaN(parsed) ? 0 : parsed
+          }
+          return 0
+        }
+        return getTime(b.timestamp) - getTime(a.timestamp)
       })
-      .slice(0, 3)
       .map((alert) => {
         const display = getAlertDisplay(alert)
         const busNumber = alert.number_plate || alert.busNumber || "Unknown"
         const message = alert.description || `${alert.type} detected`
-        
+
         return {
           id: alert.id,
           type: display.displayType,
-          message: `${message}${busNumber !== "Unknown" ? ` - Vehicle ${busNumber}` : ""}`,
-          time: formatRelativeTime(alert.timestamp || Date.now()),
+          message: `${message}${busNumber !== "Unknown" ? ` - ${t("bus")} ${busNumber}` : ""}`,
+          time: formatRelativeTime(alert.timestamp || Date.now(), t),
           status: alert.status || "active",
           icon: display.icon,
           color: display.color,
         }
       })
-  }, [liveAlerts])
+  }, [liveAlerts, t])
 
   const quickActions = [
-    { title: "View Fleet", href: "/fleet", icon: Car, color: "bg-blue-500" },
-    { title: "Manage Drivers", href: "/drivers", icon: Users, color: "bg-green-500" },
-    { title: "View Routes", href: "/routes", icon: MapPin, color: "bg-purple-500" },
-    { title: "Analytics", href: "/analytics", icon: Activity, color: "bg-orange-500" },
+    { title: t("view_fleet"), href: "/fleet", icon: Car, color: "bg-blue-500" },
+    { title: t("driver_management"), href: "/drivers", icon: Users, color: "bg-green-500" },
+    { title: t("view_routes"), href: "/routes", icon: MapPin, color: "bg-purple-500" },
+    { title: t("reports"), href: "/reports", icon: FileText, color: "bg-orange-500" },
   ]
+
+  const scoreTrendNum = parseFloat(fleetStats.safetyTrend) || 0
+  const riskTrend = scoreTrendNum === 0 ? "0.0%" : `${scoreTrendNum > 0 ? "-" : "+"}${Math.abs(scoreTrendNum).toFixed(1)}%`
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold text-gray-900">SafeDriver Dashboard</h1>
-        <p className="text-gray-600">Monitor your fleet safety and performance in real-time</p>
+        <h1 className="text-3xl font-bold text-gray-900">{t("dashboard_title")}</h1>
+        <p className="text-gray-600">{t("dashboard_desc")}</p>
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 items-stretch">
+        <SafetyScoreCard 
+          score={fleetStats.safetyScore} 
+          trend={fleetStats.safetyTrend}
+          className="h-full"
+        />
+
+        <RiskLevelCard 
+          score={fleetStats.safetyScore}
+          trend={riskTrend}
+          className="h-full"
+        />
+
+        <Card className="flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("total_vehicles")}</CardTitle>
             <Car className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
@@ -320,14 +315,14 @@ export default function HomePage() {
               {isLoadingFleet ? "..." : fleetStats.totalVehicles}
             </div>
             <p className="text-xs text-muted-foreground">
-              {isLoadingFleet ? "..." : fleetStats.activeVehicles} currently active
+              {isLoadingFleet ? "..." : fleetStats.activeVehicles} {t("currently_active")}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Drivers on Duty</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("drivers_on_duty")}</CardTitle>
             <Users className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
@@ -335,31 +330,21 @@ export default function HomePage() {
               {isLoadingDriverStats ? "..." : fleetStats.driversOnDuty}
             </div>
             <p className="text-xs text-muted-foreground">
-              Out of {isLoadingDriverStats ? "..." : fleetStats.totalDrivers} total drivers
+              {t("drivers_total_context", { total: isLoadingDriverStats ? "..." : fleetStats.totalDrivers })}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Safety Score</CardTitle>
-            <Shield className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{fleetStats.safetyScore}%</div>
-            <Progress value={fleetStats.safetyScore} className="mt-2" />
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Alerts Today</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("alerts_today")}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{fleetStats.alertsToday}</div>
             <p className="text-xs text-muted-foreground">
-              {fleetStats.todayResolvedAlerts} resolved, {fleetStats.todayActiveAlerts} active
+              {fleetStats.todayResolvedAlerts} {t("resolved")}, {fleetStats.todayActiveAlerts} {t("active")}
             </p>
           </CardContent>
         </Card>
@@ -371,18 +356,18 @@ export default function HomePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bell className="h-5 w-5 text-orange-600" />
-              Recent Alerts
+              {t("recent_alerts")}
             </CardTitle>
-            <CardDescription>Latest safety and operational alerts</CardDescription>
+            <CardDescription>{t("recent_alerts_desc")}</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingAlerts ? (
               <div className="flex items-center justify-center py-8">
-                <div className="text-sm text-gray-500">Loading alerts...</div>
+                <div className="text-sm text-gray-500">{t("loading_alerts")}</div>
               </div>
             ) : recentAlerts.length === 0 ? (
               <div className="flex items-center justify-center py-8">
-                <div className="text-sm text-gray-500">No recent alerts</div>
+                <div className="text-sm text-gray-500">{t("no_recent_alerts")}</div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -395,8 +380,8 @@ export default function HomePage() {
                         <div className="font-medium text-sm">{alert.message}</div>
                         <div className="text-xs text-gray-500">{alert.time}</div>
                       </div>
-                      <Badge variant={alert.status === "active" ? "destructive" : "secondary"}>
-                        {alert.status}
+                      <Badge variant={alert.status === "active" ? "destructive" : "secondary"} className="uppercase">
+                        {t(alert.status as any)}
                       </Badge>
                     </div>
                   )
@@ -405,7 +390,7 @@ export default function HomePage() {
             )}
             <div className="mt-4">
               <Button variant="outline" className="w-full" asChild>
-                <Link href="/alerts">View All Alerts</Link>
+                <Link href="/alerts">{t("view_all_alerts")}</Link>
               </Button>
             </div>
           </CardContent>
@@ -416,18 +401,18 @@ export default function HomePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-blue-600" />
-              Recent Feedback
+              {t("recent_feedback")}
             </CardTitle>
-            <CardDescription>Recent customer feedback and reviews</CardDescription>
+            <CardDescription>{t("recent_feedback_desc")}</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingFeedback ? (
               <div className="flex items-center justify-center py-8">
-                <div className="text-sm text-gray-500">Loading feedback...</div>
+                <div className="text-sm text-gray-500">{t("loading_feedback")}</div>
               </div>
             ) : recentFeedback.length === 0 ? (
               <div className="flex items-center justify-center py-8">
-                <div className="text-sm text-gray-500">No feedback available</div>
+                <div className="text-sm text-gray-500">{t("no_feedback")}</div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -438,7 +423,7 @@ export default function HomePage() {
                       <div className="font-medium text-sm truncate">{item.title}</div>
                       <div className="text-xs text-gray-500 line-clamp-2 mt-1">{item.description}</div>
                       <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                        <span>Bus: {item.busNumber}</span>
+                        <span>{t("bus")}: {item.busNumber}</span>
                         {item.rating && (
                           <div className="flex items-center gap-1">
                             <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
@@ -448,8 +433,8 @@ export default function HomePage() {
                         <span>{item.time}</span>
                       </div>
                     </div>
-                    <Badge variant={item.status === "resolved" ? "default" : item.status === "acknowledged" ? "secondary" : "outline"}>
-                      {item.status}
+                    <Badge variant={item.status === "resolved" ? "default" : item.status === "acknowledged" ? "secondary" : "outline"} className="uppercase">
+                      {t(item.status as any)}
                     </Badge>
                   </div>
                 ))}
@@ -457,7 +442,7 @@ export default function HomePage() {
             )}
             <div className="mt-4">
               <Button variant="outline" className="w-full" asChild>
-                <Link href="/compliance">View All Feedback</Link>
+                <Link href="/compliance">{t("view_all_feedback")}</Link>
               </Button>
             </div>
           </CardContent>
@@ -469,9 +454,9 @@ export default function HomePage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-blue-600" />
-            Quick Actions
+            {t("quick_actions")}
           </CardTitle>
-          <CardDescription>Access key features and management tools</CardDescription>
+          <CardDescription>{t("quick_actions_desc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

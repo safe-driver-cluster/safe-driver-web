@@ -88,7 +88,7 @@ export class PushNotificationService {
     // Create new subscription
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: this.urlBase64ToUint8Array(this.vapidPublicKey),
+      applicationServerKey: this.urlBase64ToUint8Array(this.vapidPublicKey) as any,
     })
 
     const subscriptionJSON = this.subscriptionToJSON(subscription)

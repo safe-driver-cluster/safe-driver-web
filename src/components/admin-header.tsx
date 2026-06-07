@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -11,7 +12,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { Bell, Settings, LogOut, Shield, Search, Mic, AlertTriangle, MessageSquare, Users, Bus, MapPin, FileText, CheckCircle, Clock, X } from "lucide-react"
+import { Bell, Settings, LogOut, Search, Mic, AlertTriangle, MessageSquare, Users, Bus, MapPin, FileText, CheckCircle, Clock, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useLiveAlerts } from "@/hooks/use-live-alerts"
@@ -37,9 +38,23 @@ interface Notification {
   severity?: "high" | "medium" | "low"
 }
 
+import { useLanguage } from "@/components/language-provider"
+import { useAuth } from "@/components/auth-provider"
+
 export function AdminHeader() {
+  const { user, signOut } = useAuth()
   const router = useRouter()
   const { alerts: liveAlerts } = useLiveAlerts()
+  const { t } = useLanguage()
+
+  const initials = user?.displayName
+    ? user.displayName
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "A"
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -190,8 +205,8 @@ export function AdminHeader() {
         // Remove old notifications (older than 7 days)
         const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
         const filteredNotifications = allNotifications.filter((notification) => {
-          const timestamp = typeof notification.timestamp === "string" 
-            ? new Date(notification.timestamp).getTime() 
+          const timestamp = typeof notification.timestamp === "string"
+            ? new Date(notification.timestamp).getTime()
             : notification.timestamp
           return timestamp > sevenDaysAgo
         })
@@ -399,14 +414,16 @@ export function AdminHeader() {
   }
 
   return (
-    <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-3 fixed top-0 left-0 right-0 z-40 shadow-sm">
+    <header className="bg-background border-b border-border px-4 md:px-6 py-3 fixed top-0 left-0 right-0 z-40 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
           <div className="flex items-center space-x-2">
-            <Shield className="h-7 w-7 text-primary-600" />
+            <div className="flex-shrink-0 w-8 h-8">
+              <Image src="/logo.png" alt="SafeDriver Logo" width={32} height={32} className="object-contain w-8 h-8" />
+            </div>
             <div className="hidden sm:block">
-              <h1 className="text-lg md:text-xl font-bold text-gray-900">SafeDriver</h1>
-              <p className="text-xs text-gray-500 hidden md:block">Transport Safety Management</p>
+              <h1 className="text-lg md:text-xl font-bold text-foreground">SafeDriver</h1>
+              <p className="text-xs text-muted-foreground hidden md:block">{t("transport_safety")}</p>
             </div>
           </div>
         </div>
@@ -419,7 +436,7 @@ export function AdminHeader() {
               <Input
                 ref={inputRef}
                 type="text"
-                placeholder="Search drivers, vehicles, routes, alerts..."
+                placeholder={t("search_placeholder")}
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value)
@@ -430,14 +447,14 @@ export function AdminHeader() {
                     setShowResults(true)
                   }
                 }}
-                className="pl-10 pr-4 bg-gray-50 w-full"
+                className="pl-10 pr-4 bg-muted w-full"
               />
             </div>
           </form>
 
           {/* Search Results Dropdown */}
           {showResults && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
               <div className="p-2">
                 {searchResults.map((result, index) => (
                   <Link
@@ -447,7 +464,7 @@ export function AdminHeader() {
                       setSearchQuery("")
                       setShowResults(false)
                     }}
-                    className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted transition-colors cursor-pointer"
                   >
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
                       {getResultIcon(result.type)}
@@ -490,7 +507,7 @@ export function AdminHeader() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80 p-0">
               <div className="flex items-center justify-between p-4 border-b">
-                <h3 className="font-semibold text-sm">Notifications</h3>
+                <h3 className="font-semibold text-sm">{t("notifications")}</h3>
                 {unreadCount > 0 && (
                   <Button
                     variant="ghost"
@@ -587,18 +604,22 @@ export function AdminHeader() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-medium">
-                  A
+                  {initials}
                 </div>
                 <div className="hidden md:block text-left">
-                  <p className="text-sm font-medium text-gray-900">Admin User</p>
-                  <p className="text-xs text-gray-500">admin@safedriver.com</p>
+                  <p className="text-sm font-medium text-foreground truncate max-w-[120px]">
+                    {user?.displayName || t("admin_user")}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate max-w-[120px]">
+                    {user?.email || "admin@safedriver.com"}
+                  </p>
                 </div>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <div className="px-2 py-1.5 border-b">
-                <p className="text-sm font-medium">Admin User</p>
-                <p className="text-xs text-gray-500">admin@safedriver.com</p>
+                <p className="text-sm font-medium truncate">{user?.displayName || "Admin User"}</p>
+                <p className="text-xs text-gray-500 truncate">{user?.email || "admin@safedriver.com"}</p>
               </div>
               <DropdownMenuItem asChild>
                 <Link href="/settings" className="cursor-pointer flex items-center">
@@ -606,15 +627,9 @@ export function AdminHeader() {
                   Settings
                 </Link>
               </DropdownMenuItem>
+
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/voice-settings" className="cursor-pointer flex items-center">
-                  <Mic className="h-4 w-4 mr-2" />
-                  Voice Settings
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-600">
+              <DropdownMenuItem onClick={signOut} className="cursor-pointer text-red-600 focus:text-red-600">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </DropdownMenuItem>
@@ -631,7 +646,7 @@ export function AdminHeader() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 type="text"
-                placeholder="Search drivers, vehicles, routes..."
+                placeholder={t("search_placeholder")}
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value)

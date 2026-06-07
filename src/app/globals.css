@@ -91,6 +91,31 @@
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
+  /* Color Schemes */
+  .theme-green {
+    --primary: 142.1 76.2% 36.3%; /* Green 600 */
+    --primary-foreground: 355.7 100% 97.3%;
+    --ring: 142.1 76.2% 36.3%;
+  }
+
+  .dark .theme-green {
+    --primary: 142.1 70.6% 45.3%; /* Green 500 */
+    --primary-foreground: 144.9 80.4% 10%;
+    --ring: 142.1 70.6% 45.3%;
+  }
+
+  .theme-purple {
+    --primary: 262.1 83.3% 57.8%; /* Purple 600 */
+    --primary-foreground: 210 40% 98%;
+    --ring: 262.1 83.3% 57.8%;
+  }
+
+  .dark .theme-purple {
+    --primary: 263.4 70% 50.4%; /* Purple 500 */
+    --primary-foreground: 210 40% 98%;
+    --ring: 263.4 70% 50.4%;
+  }
 }
 
 @layer base {

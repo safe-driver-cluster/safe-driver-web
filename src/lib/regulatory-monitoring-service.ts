@@ -149,7 +149,7 @@ export class RegulatoryMonitoringService {
       change.confidence = Math.min(
         mlAnalysis.classification.category.confidence,
         mlAnalysis.classification.severity.confidence,
-        mlAnalysis.classification.type.predicted,
+        mlAnalysis.classification.type.confidence,
       )
 
       // Add ML-generated tags

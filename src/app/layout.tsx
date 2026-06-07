@@ -2,14 +2,14 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { AdminHeader } from "@/components/admin-header"
-import { AdminSidebar } from "@/components/admin-sidebar"
-import { MobileNav } from "@/components/mobile-nav"
-import { OfflineIndicator } from "@/components/offline-indicator"
-import { VoiceCommandButton } from "@/components/voice-command-button"
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseInitializer } from "@/components/firebase-initializer"
 import { ServiceWorkerRegister } from "@/components/service-worker-register"
+import { ThemeProvider } from "@/components/theme-provider"
+import { LanguageProvider } from "@/components/language-provider"
+import { ColorSchemeInitializer } from "@/components/color-scheme-initializer"
+import { AuthProvider } from "@/components/auth-provider"
+import { LayoutWrapper } from "@/components/layout-wrapper"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -19,8 +19,8 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   generator: 'v0.dev',
   icons: {
-    icon: '/placeholder-logo.png',
-    apple: '/placeholder-logo.png',
+    icon: '/logo.png',
+    apple: '/logo.png',
   },
   appleWebApp: {
     capable: true,
@@ -45,46 +45,56 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/placeholder-logo.png" />
-        <link rel="apple-touch-icon" href="/placeholder-logo.png" />
+        <link rel="icon" href="/logo.png" />
+        <link rel="apple-touch-icon" href="/logo.png" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="SafeDriver" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.addEventListener('error', function(event) {
+                var msg = event.message || '';
+                if (msg.indexOf('ChunkLoadError') !== -1 || msg.indexOf('Loading chunk') !== -1 || msg.indexOf('Cannot read properties of undefined (reading \\'call\\')') !== -1) {
+                  console.warn('ChunkLoadError detected, reloading window...');
+                  window.location.reload();
+                }
+              });
+              window.addEventListener('unhandledrejection', function(event) {
+                var msg = (event.reason && event.reason.message) ? event.reason.message : String(event.reason);
+                if (msg.indexOf('ChunkLoadError') !== -1 || msg.indexOf('Loading chunk') !== -1 || msg.indexOf('Cannot read properties of undefined (reading \\'call\\')') !== -1) {
+                  console.warn('ChunkLoadError rejection detected, reloading window...');
+                  window.location.reload();
+                }
+              });
+            `,
+          }}
+        />
       </head>
       <body className={inter.className}>
-        <div className="min-h-screen bg-gray-50">
-          <AdminHeader />
-          <div className="flex">
-            {/* Desktop Sidebar - hidden on mobile */}
-            <div className="hidden md:block">
-              <AdminSidebar />
-            </div>
+        <LanguageProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <ColorSchemeInitializer />
+            <AuthProvider>
+              <LayoutWrapper>{children}</LayoutWrapper>
 
-            {/* Main Content - full width on mobile, adjusted margin on desktop */}
-            <main className="flex-1 md:ml-64 p-4 md:p-6 pt-20 md:pt-24 bg-gray-50 min-h-screen w-full relative z-0">{children}</main>
-          </div>
+              {/* Toast Notifications */}
+              <Toaster />
 
-          {/* Mobile Navigation - visible only on mobile */}
-          <div className="md:hidden">
-            <MobileNav />
-          </div>
+              {/* Firebase Initializer (client-side only) */}
+              <FirebaseInitializer />
 
-          {/* Offline Indicator */}
-          <OfflineIndicator />
-
-          {/* Voice Command Button */}
-          <VoiceCommandButton />
-
-          {/* Toast Notifications */}
-          <Toaster />
-
-          {/* Firebase Initializer (client-side only) */}
-          <FirebaseInitializer />
-
-          {/* Service Worker Registration (client-side only) */}
-          <ServiceWorkerRegister />
-        </div>
+              {/* Service Worker Registration (client-side only) */}
+              <ServiceWorkerRegister />
+            </AuthProvider>
+          </ThemeProvider>
+        </LanguageProvider>
       </body>
     </html>
   )

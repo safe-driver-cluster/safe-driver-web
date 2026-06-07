@@ -11,7 +11,7 @@ try {
 }
 
 const updateStatusSchema = z.object({
-  status: z.enum(["on_duty", "off_duty", "suspended", "on_break"]),
+  status: z.enum(["on_duty", "off_duty", "suspended"]),
 })
 
 // PUT /api/drivers/[id]/status - Update driver status
@@ -23,7 +23,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const validationResult = updateStatusSchema.safeParse(body)
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Validation failed", details: validationResult.error.errors },
+        { error: "Validation failed", details: validationResult.error.issues },
         { status: 400 },
       )
     }

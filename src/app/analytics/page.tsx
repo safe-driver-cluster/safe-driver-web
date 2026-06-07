@@ -1,7 +1,14 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { motion } from "framer-motion"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -11,144 +18,78 @@ import {
   Shield,
   Activity,
   AlertTriangle,
-  Brain,
-  Target,
-  Users,
-  Clock,
   RefreshCw,
-  Download,
-  Settings,
-  CheckCircle,
-  Bell,
-  MessageSquare,
-  Bus,
-  Car,
+  BarChart3,
+  PieChart,
+  LineChart,
+  Clock,
+  Loader2,
+  ArrowUpRight,
+  ArrowDownRight,
+  Zap,
+  Target,
+  Brain,
+  ChevronRight,
 } from "lucide-react"
-import { useLiveAlerts } from "@/hooks/use-live-alerts"
+import { useLanguage } from "@/components/language-provider"
+import { useLiveAlerts, isToday } from "@/hooks/use-live-alerts"
+import { calculateSafetyScore } from "@/lib/safety-score"
 
-// Helper function to format relative time
-const formatRelativeTime = (timestamp: string | number): string => {
-  if (!timestamp) return "Unknown"
-  
-  const timestampMs = typeof timestamp === "string" ? new Date(timestamp).getTime() : timestamp
-  const now = Date.now()
-  const diffMs = now - timestampMs
-  const diffSeconds = Math.floor(diffMs / 1000)
-  const diffMinutes = Math.floor(diffSeconds / 60)
-  const diffHours = Math.floor(diffMinutes / 60)
-  const diffDays = Math.floor(diffHours / 24)
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+}
 
-  if (diffSeconds < 60) {
-    return `${diffSeconds} second${diffSeconds !== 1 ? "s" : ""} ago`
-  } else if (diffMinutes < 60) {
-    return `${diffMinutes} minute${diffMinutes !== 1 ? "s" : ""} ago`
-  } else if (diffHours < 24) {
-    return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`
-  } else {
-    return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`
-  }
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { type: "spring" as const, stiffness: 100 },
+  },
 }
 
 export default function AnalyticsPage() {
-  // Get real-time alerts
-  const { alerts: liveAlerts, isLoading: isLoadingAlerts } = useLiveAlerts()
-  
-  // Feedback state
-  const [feedback, setFeedback] = useState<any[]>([])
-  const [isLoadingFeedback, setIsLoadingFeedback] = useState(true)
-  
-  // Drivers state
-  const [recentDrivers, setRecentDrivers] = useState<any[]>([])
-  const [isLoadingDrivers, setIsLoadingDrivers] = useState(true)
-  
-  // Fleet state
-  const [recentFleet, setRecentFleet] = useState<any[]>([])
+  const { t } = useLanguage()
+  const { alerts: liveAlerts, historyAlerts, isLoading: isLoadingAlerts } = useLiveAlerts()
+  const [fleetVehicles, setFleetVehicles] = useState<any[]>([])
+  const [feedbacks, setFeedbacks] = useState<any[]>([])
   const [isLoadingFleet, setIsLoadingFleet] = useState(true)
-  // Simple static data - no undefined values possible
-  const metrics = {
-    safetyScore: 94,
-    totalAlerts: 23,
-    riskLevel: "medium",
-    performanceIndex: 87,
-    complianceRate: 96,
-    efficiency: 87,
-    quality: 94,
-    reliability: 91,
-  }
+  const [isLoadingFeedbacks, setIsLoadingFeedbacks] = useState(true)
 
-  // Fetch feedback
+  // Fetch feedbacks
   useEffect(() => {
-    const fetchFeedback = async () => {
+    const fetchFeedbacks = async () => {
       try {
-        setIsLoadingFeedback(true)
-        const response = await fetch("/api/feedback?limit=10", {
-          cache: "no-store",
-        })
+        setIsLoadingFeedbacks(true)
+        const response = await fetch("/api/feedback", { cache: "no-store" })
         if (response.ok) {
           const data = await response.json()
-          setFeedback(data)
+          setFeedbacks(data)
         }
       } catch (error) {
-        console.error("Error fetching feedback:", error)
+        console.error("Error fetching feedbacks:", error)
       } finally {
-        setIsLoadingFeedback(false)
+        setIsLoadingFeedbacks(false)
       }
     }
-
-    fetchFeedback()
-    const interval = setInterval(fetchFeedback, 30000)
+    fetchFeedbacks()
+    const interval = setInterval(fetchFeedbacks, 60000)
     return () => clearInterval(interval)
   }, [])
 
-  // Fetch recent drivers
+  // Fetch fleet vehicles
   useEffect(() => {
-    const fetchDrivers = async () => {
-      try {
-        setIsLoadingDrivers(true)
-        const response = await fetch("/api/drivers?limit=10", {
-          cache: "no-store",
-        })
-        if (response.ok) {
-          const data = await response.json()
-          // Filter to only recent registrations (last 7 days)
-          const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-          const recent = data.filter((driver: any) => {
-            if (!driver.createdAt) return false
-            const createdAt = new Date(driver.createdAt).getTime()
-            return createdAt > sevenDaysAgo
-          })
-          setRecentDrivers(recent)
-        }
-      } catch (error) {
-        console.error("Error fetching drivers:", error)
-      } finally {
-        setIsLoadingDrivers(false)
-      }
-    }
-
-    fetchDrivers()
-    const interval = setInterval(fetchDrivers, 30000)
-    return () => clearInterval(interval)
-  }, [])
-
-  // Fetch recent fleet
-  useEffect(() => {
-    const fetchFleet = async () => {
+    const fetchFleetVehicles = async () => {
       try {
         setIsLoadingFleet(true)
-        const response = await fetch("/api/fleet?limit=10", {
-          cache: "no-store",
-        })
+        const response = await fetch("/api/fleet", { cache: "no-store" })
         if (response.ok) {
-          const data = await response.json()
-          // Filter to only recent registrations (last 7 days)
-          const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-          const recent = data.filter((vehicle: any) => {
-            if (!vehicle.createdAt) return false
-            const createdAt = new Date(vehicle.createdAt).getTime()
-            return createdAt > sevenDaysAgo
-          })
-          setRecentFleet(recent)
+          const vehicles = await response.json()
+          setFleetVehicles(vehicles)
         }
       } catch (error) {
         console.error("Error fetching fleet:", error)
@@ -157,542 +98,379 @@ export default function AnalyticsPage() {
       }
     }
 
-    fetchFleet()
-    const interval = setInterval(fetchFleet, 30000)
+    fetchFleetVehicles()
+    const interval = setInterval(fetchFleetVehicles, 30000)
     return () => clearInterval(interval)
   }, [])
 
-  // Combine all activities into a unified feed
-  const recentActivities = useMemo(() => {
-    const activities: any[] = []
+  // Process Live Data
+  const data = useMemo(() => {
+    const combinedTodayAlerts = [...liveAlerts.filter(a => isToday(a.timestamp)), ...historyAlerts.filter(a => isToday(a.timestamp))]
+    const uniqueTodayAlerts = combinedTodayAlerts.filter((alert, index, self) => index === self.findIndex((a) => a.id === alert.id))
 
-    // Add alerts
-    liveAlerts.slice(0, 5).forEach((alert) => {
-      const busNumber = alert.number_plate || alert.busNumber || "Unknown"
-      activities.push({
-        id: `alert-${alert.id}`,
-        type: "alert",
-        title: `${alert.type} alert`,
-        description: `${alert.description || alert.type} - Vehicle ${busNumber}`,
-        timestamp: alert.timestamp || Date.now(),
-        icon: AlertTriangle,
-        iconColor: alert.severity === "high" ? "text-red-600" : "text-orange-600",
-      })
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const isYesterday = (ts: string | number) => new Date(ts).toDateString() === yesterday.toDateString()
+
+    // 1. Health Monitor
+    const activeNodes = new Set(uniqueTodayAlerts.map(a => a.deviceId)).size
+    
+    let latencyValue = "Syncing"
+    if (uniqueTodayAlerts.length > 0) {
+      const newestTs = Math.max(...uniqueTodayAlerts.map(a => new Date(a.timestamp).getTime() || 0))
+      const diffMs = Date.now() - newestTs
+      if (diffMs > 0 && diffMs < 60000) {
+        latencyValue = `${diffMs}ms`
+      } else {
+        latencyValue = "Optimal"
+      }
+    } else {
+      latencyValue = "Awaiting"
+    }
+
+    // 2. Performance KPIs
+    const safetyScore = calculateSafetyScore(uniqueTodayAlerts)
+    
+    const totalVehicles = fleetVehicles.length || 1
+    const activeVehicles = fleetVehicles.filter(v => v.status === "active").length
+    const fleetActivity = Math.round((activeVehicles / totalVehicles) * 100)
+
+    const totalAlertsCount = uniqueTodayAlerts.length || 1
+    const resolvedAlerts = uniqueTodayAlerts.filter(a => a.status === "resolved").length
+    const resolutionRate = uniqueTodayAlerts.length > 0 ? Math.round((resolvedAlerts / totalAlertsCount) * 100) : 100
+
+    // 3. High Risk Zones
+    const routeAlertCounts: Record<string, number> = {}
+    const routeYesterdayAlertCounts: Record<string, number> = {}
+    
+    uniqueTodayAlerts.forEach(a => {
+      const route = (a.route && a.route !== "Unknown Route") ? a.route : (a.location || "Unmapped Location")
+      routeAlertCounts[route] = (routeAlertCounts[route] || 0) + 1
     })
 
-    // Add feedback
-    feedback.slice(0, 3).forEach((item) => {
-      activities.push({
-        id: `feedback-${item.id || item.documentId}`,
-        type: "feedback",
-        title: item.title || "New feedback received",
-        description: item.description || item.comment || "Customer feedback",
-        timestamp: item.timestamp || Date.now(),
-        icon: MessageSquare,
-        iconColor: item.status === "resolved" ? "text-green-600" : "text-blue-600",
-      })
+    // Calculate yesterday's counts for the trend
+    historyAlerts.filter(a => isYesterday(a.timestamp)).forEach(a => {
+      const route = (a.route && a.route !== "Unknown Route") ? a.route : (a.location || "Unmapped Location")
+      routeYesterdayAlertCounts[route] = (routeYesterdayAlertCounts[route] || 0) + 1
     })
 
-    // Add driver registrations
-    recentDrivers.slice(0, 2).forEach((driver) => {
-      activities.push({
-        id: `driver-${driver.id || driver.documentId}`,
-        type: "driver",
-        title: "New driver registered",
-        description: `${driver.name || "Driver"} has been registered`,
-        timestamp: driver.createdAt || Date.now(),
-        icon: Users,
-        iconColor: "text-green-600",
+    const sortedRoutes = Object.entries(routeAlertCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([zone, alerts]) => {
+        let risk = "Low"
+        if (alerts >= 8) risk = "High"
+        else if (alerts >= 3) risk = "Medium"
+        
+        const yesterdayCount = routeYesterdayAlertCounts[zone] || 0
+        const trend = alerts > yesterdayCount ? "up" : "down"
+
+        return { zone, risk, trend, alerts }
       })
+      .slice(0, 3)
+
+    const highRiskZones = sortedRoutes.length > 0 ? sortedRoutes : [
+      { zone: "No active risk zones detected today", risk: "Low", trend: "down", alerts: 0 }
+    ]
+
+    // 4. Fatigue Prediction
+    const fatigueAlerts = uniqueTodayAlerts.filter(a => a.type.toLowerCase().includes("drowsy") || a.tag?.toLowerCase().includes("yawn"))
+    const fatigueRouteCounts: Record<string, number> = {}
+    fatigueAlerts.forEach(a => {
+      const route = (a.route && a.route !== "Unknown Route") ? a.route : "Multiple Routes"
+      fatigueRouteCounts[route] = (fatigueRouteCounts[route] || 0) + 1
     })
+    const mostFatigueRoute = Object.entries(fatigueRouteCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "No Data"
+    const fatigueRiskIncrease = fatigueAlerts.length > 0 ? Math.min(45, fatigueAlerts.length * 5) : 5
 
-    // Add fleet registrations
-    recentFleet.slice(0, 2).forEach((vehicle) => {
-      activities.push({
-        id: `fleet-${vehicle.id || vehicle.documentId}`,
-        type: "fleet",
-        title: "New vehicle registered",
-        description: `${vehicle.busNumberPlate || vehicle.busNumber || "Vehicle"} has been added to fleet`,
-        timestamp: vehicle.createdAt || Date.now(),
-        icon: Bus,
-        iconColor: "text-blue-600",
-      })
-    })
+    // 5. Customer Feedbacks
+    const averageRating = feedbacks.length > 0 ? (feedbacks.reduce((sum, f) => sum + (Number(f.rating) || 5), 0) / feedbacks.length).toFixed(1) : "5.0"
 
-    // Sort by timestamp (newest first) and limit to 6 most recent
-    return activities
-      .sort((a, b) => {
-        const timeA = typeof a.timestamp === "string" ? new Date(a.timestamp).getTime() : a.timestamp
-        const timeB = typeof b.timestamp === "string" ? new Date(b.timestamp).getTime() : b.timestamp
-        return timeB - timeA
-      })
-      .slice(0, 6)
-  }, [liveAlerts, feedback, recentDrivers, recentFleet])
+    return {
+      activeNodes,
+      latencyValue,
+      safetyScore,
+      fleetActivity,
+      resolutionRate,
+      highRiskZones,
+      mostFatigueRoute,
+      fatigueRiskIncrease,
+      totalAlerts: uniqueTodayAlerts.length,
+      averageRating
+    }
+  }, [liveAlerts, historyAlerts, fleetVehicles, feedbacks])
 
-  const insights = [
-    {
-      id: "1",
-      title: "Safety Training Effectiveness",
-      description: "Driver safety training completion rates have improved significantly",
-      type: "success",
-      confidence: 92,
-      category: "safety",
-      recommendation: "Continue current training programs and expand to include advanced scenarios",
-    },
-    {
-      id: "2",
-      title: "Incident Response Time",
-      description: "Average response time to safety incidents has increased",
-      type: "warning",
-      confidence: 87,
-      category: "operations",
-      recommendation: "Review response protocols and consider additional training",
-    },
-    {
-      id: "3",
-      title: "Compliance Score Improvement",
-      description: "Overall compliance scores show steady improvement",
-      type: "success",
-      confidence: 95,
-      category: "compliance",
-      recommendation: "Maintain current compliance monitoring practices",
-    },
-  ]
+  const isLoading = isLoadingAlerts || isLoadingFleet || isLoadingFeedbacks
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="h-12 w-12 text-indigo-600 animate-spin" />
+        <p className="text-slate-500 font-medium animate-pulse">Synchronizing performance data...</p>
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      className="space-y-8 pb-12"
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+    >
       {/* Header */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+      <motion.div variants={itemVariants} className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
-          <p className="text-gray-600 mt-2">
-            Comprehensive insights into compliance status, performance metrics, and safety analytics
+          <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 mb-2">
+            {t("analytics_dashboard") || "Performance Analytics"}
+          </h1>
+          <p className="text-slate-600 text-lg max-w-2xl">
+            {t("analytics_desc") || "Deep-dive into fleet performance, safety metrics, and operational efficiency with live AI-driven insights."}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline">
+        <div className="flex gap-3">
+          <Button variant="outline" className="rounded-xl border-2 hover:bg-slate-50 shadow-sm">
             <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh Data
+            {t("refresh_data") || "Live Refresh"}
           </Button>
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button variant="outline">
-            <Settings className="h-4 w-4 mr-2" />
-            Configure
+          <Button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200">
+            <Zap className="h-4 w-4 mr-2" />
+            {t("ai_insights") || "Run AI Analysis"}
           </Button>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overall Safety Score</CardTitle>
-            <Shield className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{metrics.safetyScore}%</div>
-            <p className="text-xs text-muted-foreground">+2.3% from last month</p>
-            <Progress value={metrics.safetyScore} className="mt-2" />
-          </CardContent>
-        </Card>
+      {/* Real-time Health Monitor */}
+      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          { label: "Network Health", value: data.activeNodes > 0 ? "Optimal" : "Checking", sub: "Live Connection", icon: Zap, color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "Data Latency", value: data.latencyValue, sub: "Live stream", icon: Clock, color: "text-emerald-600", bg: "bg-emerald-50" },
+          { label: "Active Connections", value: data.activeNodes.toString(), sub: "Devices streaming", icon: Activity, color: "text-indigo-600", bg: "bg-indigo-50" },
+        ].map((item, i) => (
+          <Card key={i} className="border-2 rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 bg-white/70 backdrop-blur-md">
+            <CardContent className="p-6 flex items-center gap-6">
+              <div className={`${item.bg} p-4 rounded-2xl`}>
+                <item.icon className={`h-8 w-8 ${item.color}`} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{item.label}</p>
+                <h3 className="text-2xl font-bold text-slate-900">{item.value}</h3>
+                <p className="text-xs font-medium text-slate-500 mt-1">{item.sub}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </motion.div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Alerts</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics.totalAlerts}</div>
-            <p className="text-xs text-muted-foreground">-12.5% from last month</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Risk Level</CardTitle>
-            <Target className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold capitalize">{metrics.riskLevel}</div>
-            <Badge variant="secondary" className="mt-2">
-              {metrics.riskLevel}
-            </Badge>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Performance Index</CardTitle>
-            <Activity className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{metrics.performanceIndex}%</div>
-            <p className="text-xs text-muted-foreground">+2.1% from last month</p>
-            <Progress value={metrics.performanceIndex} className="mt-2" />
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="dashboard" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="compliance">Compliance</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="insights">AI Insights</TabsTrigger>
+      {/* Main Analytics View */}
+      <Tabs defaultValue="performance" className="space-y-8">
+        <TabsList className="bg-slate-100 p-1 rounded-2xl border-2 overflow-x-auto flex flex-nowrap w-full justify-start md:w-auto">
+          <TabsTrigger value="performance" className="rounded-xl px-10 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all font-bold shrink-0">
+            <BarChart3 className="h-4 w-4 mr-2 text-indigo-600" />
+            {t("performance_metrics") || "Performance"}
+          </TabsTrigger>
+          <TabsTrigger value="compliance" className="rounded-xl px-10 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all font-bold shrink-0">
+            <Shield className="h-4 w-4 mr-2 text-emerald-600" />
+            {t("compliance_overview") || "Feedbacks"}
+          </TabsTrigger>
+          <TabsTrigger value="risk" className="rounded-xl px-10 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all font-bold shrink-0">
+            <AlertTriangle className="h-4 w-4 mr-2 text-rose-600" />
+            {t("risk_level") || "Risk Analysis"}
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="dashboard" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Compliance Overview */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-blue-600" />
-                  Compliance Overview
-                </CardTitle>
-                <CardDescription>Current compliance status across all areas</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Regulatory Compliance</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={96} className="w-20" />
-                      <span className="text-sm font-medium">96%</span>
-                    </div>
+        <TabsContent value="performance" className="space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Main Chart */}
+            <Card className="lg:col-span-2 border-2 rounded-3xl shadow-xl overflow-hidden group">
+              <CardHeader className="bg-slate-50/50 border-b-2 p-8">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-2xl font-bold">Operational Efficiency</CardTitle>
+                    <CardDescription>Real-time fleet tracking & alert metrics</CardDescription>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Safety Standards</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={92} className="w-20" />
-                      <span className="text-sm font-medium">92%</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Environmental</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={98} className="w-20" />
-                      <span className="text-sm font-medium">98%</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Operational</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={91} className="w-20" />
-                      <span className="text-sm font-medium">91%</span>
-                    </div>
+                  <div className="flex gap-2">
+                    <Badge className="bg-indigo-100 text-indigo-700 border-none px-4 py-1 rounded-lg">Live Stream</Badge>
                   </div>
                 </div>
+              </CardHeader>
+              <CardContent className="p-0 h-[400px] flex items-center justify-center relative bg-gradient-to-b from-white to-slate-50">
+                 <div className="text-center space-y-4 group-hover:scale-105 transition-transform duration-500">
+                    <div className="inline-flex bg-indigo-100 p-6 rounded-3xl shadow-inner">
+                      <LineChart className="h-16 w-16 text-indigo-600" />
+                    </div>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Real-time Visualizer Ready</p>
+                 </div>
+                 <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-indigo-500/5 to-transparent" />
               </CardContent>
             </Card>
 
-            {/* Performance Metrics */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-green-600" />
-                  Performance Metrics
-                </CardTitle>
-                <CardDescription>Key performance indicators</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Efficiency</span>
-                    <span className="font-bold">{metrics.efficiency}%</span>
-                  </div>
-                  <Progress value={metrics.efficiency} />
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Quality</span>
-                    <span className="font-bold">{metrics.quality}%</span>
-                  </div>
-                  <Progress value={metrics.quality} />
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Reliability</span>
-                    <span className="font-bold">{metrics.reliability}%</span>
-                  </div>
-                  <Progress value={metrics.reliability} />
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Safety</span>
-                    <span className="font-bold">89%</span>
-                  </div>
-                  <Progress value={89} />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="h-5 w-5 text-orange-600" />
-                Recent Activity
-              </CardTitle>
-              <CardDescription>Latest alerts and notifications</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingAlerts && isLoadingFeedback && isLoadingDrivers && isLoadingFleet ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="text-sm text-gray-500">Loading activities...</div>
-                </div>
-              ) : recentActivities.length === 0 ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="text-sm text-gray-500">No recent activities</div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {recentActivities.map((activity) => {
-                    const IconComponent = activity.icon || Bell
-                    return (
-                      <div key={activity.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                        <IconComponent className={`h-5 w-5 ${activity.iconColor || "text-gray-600"}`} />
-                        <div className="flex-1">
-                          <div className="font-medium">{activity.title}</div>
-                          <div className="text-sm text-gray-600">{activity.description}</div>
+            {/* KPIs */}
+            <div className="space-y-6">
+              {[
+                { label: "Fleet Activity", value: data.fleetActivity, color: "bg-blue-500", icon: Activity },
+                { label: "Safety Compliance", value: Math.round(data.safetyScore), color: "bg-emerald-500", icon: Shield },
+                { label: "Resolution Rate", value: data.resolutionRate, color: "bg-indigo-500", icon: Target },
+              ].map((kpi, i) => (
+                <Card key={i} className="border-2 rounded-3xl shadow-lg hover:translate-x-2 transition-transform duration-300">
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-slate-100 p-2 rounded-lg">
+                          <kpi.icon className="h-4 w-4 text-slate-600" />
                         </div>
-                        <div className="text-xs text-gray-500">{formatRelativeTime(activity.timestamp)}</div>
+                        <span className="font-bold text-slate-700">{kpi.label}</span>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="compliance" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-green-600" />
-                  Overall Score
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{metrics.safetyScore}%</div>
-                <Progress value={metrics.safetyScore} className="mt-2" />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-orange-600" />
-                  Total Alerts
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{metrics.totalAlerts}</div>
-                <div className="text-xs text-muted-foreground mt-1">-12.5% vs last period</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Target className="h-4 w-4 text-blue-600" />
-                  Risk Level
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold capitalize">{metrics.riskLevel}</div>
-                <Badge variant="secondary" className="mt-2">
-                  {metrics.riskLevel}
-                </Badge>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-purple-600" />
-                  Trend
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-purple-600">+2.3%</div>
-                <div className="text-xs text-muted-foreground mt-1">Safety improvement</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Compliance Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Compliance Details</CardTitle>
-              <CardDescription>Detailed breakdown of compliance metrics</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <h4 className="font-medium">Regulatory Compliance</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">DOT Regulations</span>
-                      <span className="font-medium">98%</span>
+                      <span className="text-xl font-black text-slate-900">{kpi.value}%</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Safety Standards</span>
-                      <span className="font-medium">95%</span>
+                    <Progress value={kpi.value} className={`h-3 ${kpi.color} rounded-full`} />
+                    <div className="mt-3 flex justify-between items-center">
+                       <span className="text-xs font-bold text-slate-400">Live Status</span>
+                       <span className="text-xs font-bold text-emerald-600 flex items-center">
+                         <ArrowUpRight className="h-3 w-3 mr-1" />
+                         Active
+                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Environmental</span>
-                      <span className="font-medium">97%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="font-medium">Operational Compliance</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Driver Training</span>
-                      <span className="font-medium">96%</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Vehicle Maintenance</span>
-                      <span className="font-medium">94%</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Documentation</span>
-                      <span className="font-medium">99%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="performance" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-blue-600" />
-                  Performance Metrics
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Efficiency</span>
-                    <span className="font-bold">{metrics.efficiency}%</span>
-                  </div>
-                  <Progress value={metrics.efficiency} />
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Quality</span>
-                    <span className="font-bold">{metrics.quality}%</span>
-                  </div>
-                  <Progress value={metrics.quality} />
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Reliability</span>
-                    <span className="font-bold">{metrics.reliability}%</span>
-                  </div>
-                  <Progress value={metrics.reliability} />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-green-600" />
-                  Team Performance
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Training Completion</span>
-                    <span className="font-bold text-green-600">98%</span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Certification Rate</span>
-                    <span className="font-bold text-blue-600">95%</span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Engagement Score</span>
-                    <span className="font-bold text-purple-600">89%</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-orange-600" />
-                  Response Times
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Incident Response</span>
-                    <span className="font-bold">4.2 min</span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Alert Processing</span>
-                    <span className="font-bold">1.8 min</span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Resolution Time</span>
-                    <span className="font-bold">24.5 min</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </TabsContent>
 
-        <TabsContent value="insights" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5 text-purple-600" />
-                AI-Powered Insights
-              </CardTitle>
-              <CardDescription>Machine learning analysis and recommendations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                {insights.map((insight) => (
-                  <div key={insight.id} className="p-4 border rounded-lg">
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-medium">{insight.title}</h4>
-                      <Badge variant={insight.type === "warning" ? "secondary" : "default"}>{insight.type}</Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">{insight.description}</p>
-                    <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                      <strong>Recommendation:</strong> {insight.recommendation}
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="outline">Confidence: {insight.confidence}%</Badge>
-                      <Badge variant="outline">{insight.category}</Badge>
-                    </div>
+        <TabsContent value="compliance" className="space-y-8">
+           <Card className="border-2 rounded-[2rem] shadow-2xl overflow-hidden">
+             <div className="grid grid-cols-1 lg:grid-cols-2">
+                <div className="p-12 space-y-8">
+                   <div>
+                     <Badge className={`${Number(data.averageRating) >= 4.0 ? 'bg-emerald-600' : Number(data.averageRating) >= 3.0 ? 'bg-amber-500' : 'bg-rose-500'} mb-4 px-4 py-1`}>
+                       {Number(data.averageRating) >= 4.0 ? 'High Satisfaction' : Number(data.averageRating) >= 3.0 ? 'Needs Improvement' : 'Critical Satisfaction'}
+                     </Badge>
+                     <h2 className="text-4xl font-black text-slate-900 leading-tight">Customer Feedbacks</h2>
+                     <p className="text-slate-500 text-lg mt-4 leading-relaxed">
+                       Direct passenger feedback collected regarding driver behavior and overall fleet safety.
+                     </p>
+                   </div>
+                   
+                   <div className="grid grid-cols-2 gap-8">
+                      <div>
+                        <p className={`text-3xl font-black ${Number(data.averageRating) >= 4.0 ? 'text-emerald-600' : Number(data.averageRating) >= 3.0 ? 'text-amber-600' : 'text-rose-600'}`}>
+                          {data.averageRating} / 5.0
+                        </p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Average Rating</p>
+                      </div>
+                      <div>
+                        <p className="text-3xl font-black text-indigo-600">{feedbacks.length}</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Total Feedbacks</p>
+                      </div>
+                   </div>
+
+                   <Button className="w-full py-7 rounded-2xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-xl group">
+                     View All Feedbacks
+                     <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                   </Button>
+                </div>
+                
+                <div className="bg-slate-50 p-6 md:p-12 flex flex-col items-center justify-start relative group max-h-[600px] overflow-y-auto">
+                   <div className="w-full space-y-4">
+                      <h4 className="text-xl font-bold text-slate-800 sticky top-0 bg-slate-50 py-2 z-10">Recent Feedbacks</h4>
+                      {feedbacks.length === 0 ? (
+                        <p className="text-slate-500">No feedbacks available.</p>
+                      ) : (
+                        feedbacks.slice(0, 10).map((fb, i) => (
+                          <div key={i} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-2">
+                             <div className="flex justify-between items-center">
+                               <div className="flex items-center gap-2">
+                                 <div className="bg-slate-100 px-2 py-1 rounded-md text-xs font-bold">{fb.busNumber || 'Unknown Bus'}</div>
+                                 <span className="text-xs text-slate-500">{new Date(fb.createdAt || Date.now()).toLocaleDateString()}</span>
+                               </div>
+                               <Badge className={`${Number(fb.rating) >= 4 ? 'bg-emerald-100 text-emerald-700' : Number(fb.rating) >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'} border-none`}>
+                                 {fb.rating || 5} Stars
+                               </Badge>
+                             </div>
+                             <p className="text-slate-700 text-sm font-medium">"{fb.message || fb.comment || 'No comment provided.'}"</p>
+                             {fb.type && <p className="text-xs text-indigo-500 font-bold uppercase">{fb.type}</p>}
+                          </div>
+                        ))
+                      )}
+                   </div>
+                </div>
+             </div>
+           </Card>
+        </TabsContent>
+
+        <TabsContent value="risk" className="space-y-8">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <Card className="border-2 rounded-3xl shadow-xl p-10 bg-slate-900 text-white overflow-hidden relative group">
+                <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:opacity-10 transition-opacity">
+                   <Brain className="h-64 w-64 -mr-20 -mt-20" />
+                </div>
+                <div className="relative z-10">
+                  <Badge className="bg-rose-500 border-none mb-6 px-4 py-1 text-xs font-bold tracking-widest uppercase">Live Risk Forecast</Badge>
+                  <h3 className="text-3xl font-extrabold mb-4 leading-tight">Predictive Fatigue Analysis</h3>
+                  <p className="text-slate-400 text-lg leading-relaxed mb-8">
+                    Live AI models indicate a {data.fatigueRiskIncrease}% risk increase in driver fatigue currently detected on <strong className="text-white">{data.mostFatigueRoute}</strong>.
+                  </p>
+                  <div className="flex gap-4">
+                    <Button className="rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-bold px-8">Mitigate Risk</Button>
+                    <Button variant="ghost" className="rounded-xl text-white hover:bg-white/10 font-bold border-2 border-white/20">View Data</Button>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                </div>
+              </Card>
+
+              <Card className="border-2 rounded-3xl shadow-xl p-10 bg-white overflow-hidden group">
+                <h3 className="text-2xl font-bold mb-6 flex items-center gap-3 text-slate-900">
+                  <div className="h-2 w-2 rounded-full bg-rose-600" />
+                  High-Risk Zones Detected
+                </h3>
+                <div className="space-y-6">
+                  {data.highRiskZones.map((zone, i) => (
+                    <div key={i} className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border-2 border-transparent hover:border-slate-100 transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-xl ${zone.risk === 'High' ? 'bg-rose-100 text-rose-600' : zone.risk === 'Medium' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                          <MapPin className="h-5 w-5" />
+                        </div>
+                        <div className="max-w-[150px] sm:max-w-[200px]">
+                          <p className="font-bold text-slate-800 truncate">{zone.zone}</p>
+                          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{zone.alerts} Alerts logged</p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                         <Badge className={`${zone.risk === 'High' ? 'bg-rose-500' : zone.risk === 'Medium' ? 'bg-amber-500' : 'bg-emerald-500'} text-white border-none`}>
+                           {zone.risk} Risk
+                         </Badge>
+                         <p className={`text-[10px] font-black uppercase mt-1 flex items-center justify-end ${zone.trend === 'up' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                           {zone.trend === 'up' ? <ArrowUpRight className="h-2 w-2 mr-0.5" /> : <ArrowDownRight className="h-2 w-2 mr-0.5" />}
+                           Trending {zone.trend}
+                         </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+           </div>
         </TabsContent>
       </Tabs>
-    </div>
+    </motion.div>
+  )
+}
+
+function MapPin(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
   )
 }

@@ -5,14 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
+
+import { useLanguage } from "@/components/language-provider"
 
 export function GeneralSettings() {
   const [systemName, setSystemName] = useState("SafeDriver Authority Panel")
-  const [timezone, setTimezone] = useState("UTC")
-  const [language, setLanguage] = useState("en-US")
-  const [autoLogout, setAutoLogout] = useState(true)
-  const [sessionTimeout, setSessionTimeout] = useState("30")
+  const { language, setLanguage } = useLanguage()
 
   return (
     <Card>
@@ -28,67 +26,19 @@ export function GeneralSettings() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="timezone">Timezone</Label>
-          <Select value={timezone} onValueChange={setTimezone}>
-            <SelectTrigger id="timezone">
-              <SelectValue placeholder="Select timezone" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="UTC">UTC (Coordinated Universal Time)</SelectItem>
-              <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
-              <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
-              <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
-              <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
-              <SelectItem value="Europe/London">London (GMT)</SelectItem>
-              <SelectItem value="Europe/Paris">Paris (CET)</SelectItem>
-              <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
-              <SelectItem value="Australia/Sydney">Sydney (AEST)</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-sm text-muted-foreground">All dates and times will be displayed in this timezone.</p>
-        </div>
-
-        <div className="space-y-2">
           <Label htmlFor="language">Language</Label>
-          <Select value={language} onValueChange={setLanguage}>
+          <Select value={language} onValueChange={(val: any) => setLanguage(val)}>
             <SelectTrigger id="language">
               <SelectValue placeholder="Select language" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="en-US">English (US)</SelectItem>
-              <SelectItem value="en-GB">English (UK)</SelectItem>
-              <SelectItem value="es-ES">Spanish</SelectItem>
-              <SelectItem value="fr-FR">French</SelectItem>
-              <SelectItem value="de-DE">German</SelectItem>
-              <SelectItem value="ja-JP">Japanese</SelectItem>
-              <SelectItem value="zh-CN">Chinese (Simplified)</SelectItem>
+              <SelectItem value="si-LK">Sinhala</SelectItem>
+              <SelectItem value="en-US">English</SelectItem>
+              <SelectItem value="ta-LK">Tamil</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-sm text-muted-foreground">The language used throughout the system interface.</p>
         </div>
-
-        <div className="flex items-center justify-between space-y-0 pt-4">
-          <div className="space-y-0.5">
-            <Label htmlFor="auto-logout">Auto Logout</Label>
-            <p className="text-sm text-muted-foreground">Automatically log out after period of inactivity</p>
-          </div>
-          <Switch id="auto-logout" checked={autoLogout} onCheckedChange={setAutoLogout} />
-        </div>
-
-        {autoLogout && (
-          <div className="space-y-2">
-            <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
-            <Input
-              id="session-timeout"
-              type="number"
-              value={sessionTimeout}
-              onChange={(e) => setSessionTimeout(e.target.value)}
-              min="1"
-              max="1440"
-            />
-            <p className="text-sm text-muted-foreground">Number of minutes of inactivity before automatic logout.</p>
-          </div>
-        )}
       </CardContent>
     </Card>
   )

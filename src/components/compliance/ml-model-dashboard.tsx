@@ -427,7 +427,7 @@ export function MLModelDashboard() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span>High Confidence (>90%)</span>
+                      <span>High Confidence (&gt;90%)</span>
                       <span>67%</span>
                     </div>
                     <div className="flex justify-between text-sm">
@@ -435,7 +435,7 @@ export function MLModelDashboard() {
                       <span>28%</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span>Low Confidence (<70%)</span>
+                      <span>Low Confidence (&lt;70%)</span>
                       <span>5%</span>
                     </div>
                   </div>

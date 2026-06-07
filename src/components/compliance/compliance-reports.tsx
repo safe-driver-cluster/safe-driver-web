@@ -185,12 +185,14 @@ export function ComplianceReports() {
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange.from}
-                    selected={dateRange}
-                    onSelect={(range) => range && setDateRange(range as { from: Date; to: Date })}
-                    numberOfMonths={2}
+                    {...({
+                      initialFocus: true,
+                      mode: "range",
+                      defaultMonth: dateRange.from,
+                      selected: dateRange,
+                      onSelect: (range: any) => range && setDateRange(range as { from: Date; to: Date }),
+                      numberOfMonths: 2,
+                    } as any)}
                   />
                 </PopoverContent>
               </Popover>

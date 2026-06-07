@@ -11,8 +11,19 @@ const routeStopSchema = z.object({
   longitude: z.number().optional(),
 })
 
+const hazardZoneSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  location: z.string().min(1),
+  latitude: z.number(),
+  longitude: z.number(),
+  type: z.enum(["accident", "other"]).default("accident"),
+  radius: z.number().min(0).default(200),
+})
+
 const updateRouteSchema = z.object({
   name: z.string().min(1).optional(),
+  busNumber: z.string().optional(),
   startPoint: z.string().min(1).optional(),
   endPoint: z.string().min(1).optional(),
   distance: z.number().min(0).optional(),
@@ -20,12 +31,9 @@ const updateRouteSchema = z.object({
   status: z.enum(["active", "inactive", "maintenance"]).optional(),
   activeVehicles: z.number().min(0).optional(),
   totalStops: z.number().min(0).optional(),
-  onTimePerformance: z.number().min(0).max(100).optional(),
-  averageSpeed: z.number().min(0).optional(),
-  passengerLoad: z.number().min(0).max(100).optional(),
-  safetyIncidents: z.number().min(0).optional(),
   vehicles: z.array(z.string()).optional(),
   stops: z.array(routeStopSchema).optional(),
+  hazardZones: z.array(hazardZoneSchema).optional(),
 })
 
 // GET /api/routes/[id] - Get a single route
@@ -53,7 +61,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const validationResult = updateRouteSchema.safeParse(body)
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Validation failed", details: validationResult.error.errors },
+        { error: "Validation failed", details: validationResult.error.issues },
         { status: 400 },
       )
     }

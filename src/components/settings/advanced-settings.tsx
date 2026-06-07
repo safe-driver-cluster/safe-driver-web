@@ -29,7 +29,7 @@ export function AdvancedSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <Alert variant="warning">
+        <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Warning</AlertTitle>
           <AlertDescription>

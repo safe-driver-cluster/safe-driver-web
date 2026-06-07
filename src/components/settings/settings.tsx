@@ -12,8 +12,10 @@ import { AdvancedSettings } from "./advanced-settings"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"
+import { useLanguage } from "@/components/language-provider"
 
 export function Settings() {
+  const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState("general")
   const [isSaving, setIsSaving] = useState(false)
 
@@ -23,22 +25,26 @@ export function Settings() {
     await new Promise((resolve) => setTimeout(resolve, 1000))
     setIsSaving(false)
     toast({
-      title: "Settings saved",
-      description: "Your settings have been saved successfully.",
+      title: t("settings_saved"),
+      description: t("settings_saved_desc"),
     })
   }
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">{t("system_settings")}</h1>
+        <p className="text-muted-foreground mt-2">{t("system_settings_desc")}</p>
+      </div>
       <Tabs defaultValue="general" value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid grid-cols-2 md:grid-cols-7 gap-2">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="data">Data</TabsTrigger>
-          <TabsTrigger value="integrations">Integrations</TabsTrigger>
-          <TabsTrigger value="appearance">Appearance</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          <TabsTrigger value="general">{t("general")}</TabsTrigger>
+          <TabsTrigger value="notifications">{t("notifications")}</TabsTrigger>
+          <TabsTrigger value="security">{t("security")}</TabsTrigger>
+          <TabsTrigger value="data">{t("data")}</TabsTrigger>
+          <TabsTrigger value="integrations">{t("integrations")}</TabsTrigger>
+          <TabsTrigger value="appearance">{t("appearance")}</TabsTrigger>
+          <TabsTrigger value="advanced">{t("advanced")}</TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -75,7 +81,7 @@ export function Settings() {
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={isSaving}>
           {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Save Changes
+          {t("save_changes")}
         </Button>
       </div>
     </div>

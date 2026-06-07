@@ -33,10 +33,12 @@ const updateVehicleSchema = z.object({
     ),
   model: z.string().min(1).optional(),
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
-  status: z.enum(["active", "maintenance", "inactive"]).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
   driverId: z.string().optional(),
   driverName: z.string().optional(),
   route: z.string().optional(),
+  routeId: z.string().optional(),
+  locationDepot: z.string().optional(),
   location: z
     .object({
       lat: z.number(),
@@ -44,15 +46,12 @@ const updateVehicleSchema = z.object({
       address: z.string(),
     })
     .optional(),
-  fuel: z.number().min(0).max(100).optional(),
+
   mileage: z.number().min(0).optional(),
-  lastService: z.string().optional(),
-  nextService: z.string().optional(),
-  maintenanceStatus: z.enum(["excellent", "good", "needs_attention", "overdue"]).optional(),
+
   speed: z.number().min(0).optional(),
-  engineTemp: z.number().min(0).optional(),
+
   batteryLevel: z.number().min(0).max(100).optional(),
-  safetyScore: z.number().min(0).max(100).optional(),
   alerts: z.number().min(0).optional(),
 })
 
@@ -83,7 +82,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const validationResult = updateVehicleSchema.safeParse(body)
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Validation failed", details: validationResult.error.errors },
+        { error: "Validation failed", details: validationResult.error.issues },
         { status: 400 },
       )
     }
