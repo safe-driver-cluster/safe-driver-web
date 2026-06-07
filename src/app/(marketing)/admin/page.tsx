@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AlertTriangle,
-  Shield,
   Download,
   Eye,
   Phone,
@@ -73,7 +72,6 @@ const mockDrivers = [
     route: "Colombo - Kandy",
     status: "on_duty",
     alertCount: 3,
-    safetyScore: 75,
     lastAlert: "2025-01-09 14:30:25",
   },
   {
@@ -84,7 +82,6 @@ const mockDrivers = [
     route: "Galle - Matara",
     status: "on_duty",
     alertCount: 1,
-    safetyScore: 92,
     lastAlert: "2025-01-09 14:25:10",
   },
   {
@@ -95,7 +92,6 @@ const mockDrivers = [
     route: "Negombo - Colombo",
     status: "off_duty",
     alertCount: 0,
-    safetyScore: 98,
     lastAlert: "2025-01-08 18:45:30",
   },
 ]
@@ -206,12 +202,12 @@ export default function AdminDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Safety Score</CardTitle>
-            <Shield className="h-4 w-4 text-safety-600" />
+            <CardTitle className="text-sm font-medium">System Uptime</CardTitle>
+            <Activity className="h-4 w-4 text-safety-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-safety-600">88%</div>
-            <p className="text-xs text-muted-foreground">+5% from last week</p>
+            <div className="text-2xl font-bold text-safety-600">99.8%</div>
+            <p className="text-xs text-muted-foreground">+0.2% from last month</p>
           </CardContent>
         </Card>
       </div>
@@ -338,20 +334,6 @@ export default function AdminDashboard() {
                         <Badge variant={driver.status === "on_duty" ? "success" : "secondary"}>
                           {driver.status.replace("_", " ").toUpperCase()}
                         </Badge>
-                        <div className="text-right">
-                          <p className="text-sm font-medium">Safety Score</p>
-                          <p
-                            className={`text-lg font-bold ${
-                              driver.safetyScore >= 90
-                                ? "text-safety-600"
-                                : driver.safetyScore >= 75
-                                  ? "text-warning-600"
-                                  : "text-destructive"
-                            }`}
-                          >
-                            {driver.safetyScore}%
-                          </p>
-                        </div>
                       </div>
                     </div>
 
@@ -477,19 +459,19 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="font-semibold">Route Safety Scores</h4>
+                  <h4 className="font-semibold">Route Efficiency Scores</h4>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Colombo - Kandy</span>
-                      <span className="text-sm font-medium text-warning-600">75%</span>
+                      <span className="text-sm font-medium text-warning-600">82%</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Galle - Matara</span>
-                      <span className="text-sm font-medium text-safety-600">92%</span>
+                      <span className="text-sm font-medium text-safety-600">95%</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Negombo - Colombo</span>
-                      <span className="text-sm font-medium text-safety-600">98%</span>
+                      <span className="text-sm font-medium text-safety-600">99%</span>
                     </div>
                   </div>
                 </div>

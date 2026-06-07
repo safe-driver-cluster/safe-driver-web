@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Settings } from "@/components/settings/settings"
+import { LanguageThemeSettings } from "@/components/settings/language-theme-settings"
 
 export const metadata: Metadata = {
   title: "System Settings | SafeDriver",
@@ -10,7 +10,7 @@ export default function SettingsPage() {
   return (
     <div className="container mx-auto">
       <div className="flex flex-col gap-6">
-        <Settings />
+        <LanguageThemeSettings />
       </div>
     </div>
   )

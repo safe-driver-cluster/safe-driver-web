@@ -103,7 +103,6 @@ function Scene({
       <group
         position={componentPositions.camera as [number, number, number]}
         onClick={() => handleComponentClick("camera")}
-        style={{ cursor: "pointer" }}
       >
         <CameraModel isSelected={selectedComponent === "camera"} autoRotate={autoRotate} />
       </group>
@@ -112,7 +111,6 @@ function Scene({
       <group
         position={componentPositions["raspberry-pi"] as [number, number, number]}
         onClick={() => handleComponentClick("raspberry-pi")}
-        style={{ cursor: "pointer" }}
       >
         <RaspberryPiModel isSelected={selectedComponent === "raspberry-pi"} autoRotate={autoRotate} />
       </group>
@@ -121,7 +119,6 @@ function Scene({
       <group
         position={componentPositions.gps as [number, number, number]}
         onClick={() => handleComponentClick("gps")}
-        style={{ cursor: "pointer" }}
       >
         <GpsModel isSelected={selectedComponent === "gps"} autoRotate={autoRotate} />
       </group>
@@ -130,7 +127,6 @@ function Scene({
       <group
         position={componentPositions.buzzer as [number, number, number]}
         onClick={() => handleComponentClick("buzzer")}
-        style={{ cursor: "pointer" }}
       >
         <BuzzerModel isSelected={selectedComponent === "buzzer"} autoRotate={autoRotate} />
       </group>
@@ -139,7 +135,6 @@ function Scene({
       <group
         position={componentPositions.cloud as [number, number, number]}
         onClick={() => handleComponentClick("cloud")}
-        style={{ cursor: "pointer" }}
       >
         <CloudModel isSelected={selectedComponent === "cloud"} autoRotate={autoRotate} />
       </group>
@@ -148,7 +143,6 @@ function Scene({
       <group
         position={componentPositions["mobile-app"] as [number, number, number]}
         onClick={() => handleComponentClick("mobile-app")}
-        style={{ cursor: "pointer" }}
       >
         <MobileAppModel isSelected={selectedComponent === "mobile-app"} autoRotate={autoRotate} />
       </group>
@@ -157,7 +151,6 @@ function Scene({
       <group
         position={componentPositions.dashboard as [number, number, number]}
         onClick={() => handleComponentClick("dashboard")}
-        style={{ cursor: "pointer" }}
       >
         <DashboardModel isSelected={selectedComponent === "dashboard"} autoRotate={autoRotate} />
       </group>

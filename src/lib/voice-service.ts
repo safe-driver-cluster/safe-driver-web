@@ -57,7 +57,7 @@ class VoiceService {
       this.synthesis = window.speechSynthesis
 
       // Initialize SpeechRecognition with browser prefixes
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
       if (SpeechRecognition) {
         this.recognition = new SpeechRecognition()
       }
@@ -107,7 +107,7 @@ class VoiceService {
         resolve(this.voices)
       }
 
-      this.synthesis.addEventListener("voiceschanged", voicesChangedHandler)
+      this.synthesis!.addEventListener("voiceschanged", voicesChangedHandler)
 
       // Fallback in case the event doesn't fire
       setTimeout(() => {

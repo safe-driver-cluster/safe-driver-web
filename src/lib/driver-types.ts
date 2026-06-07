@@ -1,4 +1,4 @@
-export type DriverStatus = "on_duty" | "off_duty" | "suspended" | "on_break"
+export type DriverStatus = "on_duty" | "off_duty" | "suspended"
 
 export interface Driver {
   id: string
@@ -10,7 +10,6 @@ export interface Driver {
   route?: string
   status: DriverStatus
   alertCount: number
-  safetyScore: number
   lastAlert?: string
   joinDate: string
   experience: string
@@ -41,15 +40,12 @@ export interface UpdateDriverInput {
   address?: string
   experience?: string
   alertCount?: number
-  safetyScore?: number
   lastAlert?: string
 }
 
 export interface DriverFilters {
   status?: DriverStatus | "all"
   search?: string
-  minSafetyScore?: number
-  maxSafetyScore?: number
   limit?: number
 }
 

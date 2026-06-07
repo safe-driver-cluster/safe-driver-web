@@ -37,6 +37,8 @@ const updateVehicleSchema = z.object({
   driverId: z.string().optional(),
   driverName: z.string().optional(),
   route: z.string().optional(),
+  routeId: z.string().optional(),
+  locationDepot: z.string().optional(),
   location: z
     .object({
       lat: z.number(),
@@ -50,7 +52,6 @@ const updateVehicleSchema = z.object({
   speed: z.number().min(0).optional(),
 
   batteryLevel: z.number().min(0).max(100).optional(),
-  safetyScore: z.number().min(0).max(100).optional(),
   alerts: z.number().min(0).optional(),
 })
 
@@ -81,7 +82,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const validationResult = updateVehicleSchema.safeParse(body)
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Validation failed", details: validationResult.error.errors },
+        { error: "Validation failed", details: validationResult.error.issues },
         { status: 400 },
       )
     }

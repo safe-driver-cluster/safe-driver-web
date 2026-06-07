@@ -152,7 +152,7 @@ export class WebhookService {
     error?: string
   }> {
     try {
-      const headers = {
+      const headers: Record<string, string> = {
         "Content-Type": "application/json",
         "User-Agent": "SafeDriver-Webhook/1.0",
         ...webhook.headers,

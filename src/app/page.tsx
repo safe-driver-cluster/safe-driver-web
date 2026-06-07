@@ -5,10 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Car, Users, AlertTriangle, CheckCircle, Activity, Shield, Bell, TrendingUp, MapPin, Clock, MessageSquare, Star } from "lucide-react"
+import { Car, Users, AlertTriangle, CheckCircle, Activity, Shield, Bell, TrendingUp, MapPin, Clock, MessageSquare, Star, FileText } from "lucide-react"
 import Link from "next/link"
-import { useLiveAlerts } from "@/hooks/use-live-alerts"
+import { useLiveAlerts, isToday, parseTimestamp, isWithinLast24Hours, isWithinLast30Days } from "@/hooks/use-live-alerts"
 import { useLanguage } from "@/components/language-provider"
+import { SafetyScoreCard } from "@/components/safety-score-card"
+import { RiskLevelCard } from "@/components/risk-level-card"
+import { calculateSafetyScore, calculateSafetyTrend } from "@/lib/safety-score"
 
 // Helper function to format relative time
 const formatRelativeTime = (timestamp: string | number, t: (key: string) => string): string => {
@@ -144,78 +147,45 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [])
 
-  // Helper function to check if alert is from today
-  const isToday = (timestamp: string | number | undefined): boolean => {
-    if (!timestamp) return false
-
-    try {
-      // Get today's date at midnight for accurate comparison
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-
-      // Handle both string and number timestamps
-      let alertTimestamp: number
-      if (typeof timestamp === "string") {
-        alertTimestamp = new Date(timestamp).getTime()
-      } else if (typeof timestamp === "number") {
-        // If it's a number, check if it's in seconds or milliseconds
-        alertTimestamp = timestamp < 10000000000 ? timestamp * 1000 : timestamp
-      } else {
-        return false
-      }
-
-      // Check if timestamp is valid
-      if (isNaN(alertTimestamp)) return false
-
-      const alertDate = new Date(alertTimestamp)
-      alertDate.setHours(0, 0, 0, 0)
-
-      // Compare dates
-      return alertDate.getTime() === today.getTime()
-    } catch (error) {
-      console.error("Error parsing alert timestamp:", timestamp, error)
-      return false
-    }
-  }
 
   // Calculate stats from real-time data
   const fleetStats = useMemo(() => {
-    // Get today's alerts from both live and history (same logic as alerts page history tab)
-    const todayLiveAlerts = liveAlerts.filter((alert) => isToday(alert.timestamp))
-    const todayHistoryAlerts = historyAlerts.filter((alert) => isToday(alert.timestamp))
-
-    // Combine today's alerts and remove duplicates based on alert ID
-    const combinedTodayAlerts = [...todayLiveAlerts, ...todayHistoryAlerts]
-    const uniqueTodayAlerts = combinedTodayAlerts.filter((alert, index, self) =>
+    // Combine all alerts and remove duplicates based on alert ID
+    const combinedAlerts = [...liveAlerts, ...historyAlerts]
+    const uniqueAlerts = combinedAlerts.filter((alert, index, self) =>
       index === self.findIndex((a) => a.id === alert.id)
     )
 
-    // Calculate today's alert counts
-    const todayAlerts = uniqueTodayAlerts.length
-    const todayActiveAlerts = uniqueTodayAlerts.filter((a) => a.status === "active").length
-    const todayResolvedAlerts = uniqueTodayAlerts.filter((a) => a.status === "resolved").length
+    // Today's alerts (scoped to calendar today or last 24 hours)
+    const todayAlertsList = uniqueAlerts.filter(
+      (alert) => isToday(alert.timestamp) || isWithinLast24Hours(alert.timestamp)
+    )
+
+    // Calculate today's / active alert counts
+    const todayAlertsCount = todayAlertsList.length
+    const todayActiveAlerts = todayAlertsList.filter((a) => a.status === "active").length
+    const todayResolvedAlerts = todayAlertsList.filter((a) => a.status === "resolved").length
+
+    // Safety score is calculated based on ALL alerts from the last 30 days
+    const alertsLast30Days = uniqueAlerts.filter((alert) => isWithinLast30Days(alert.timestamp))
+    const safetyScore = calculateSafetyScore(alertsLast30Days)
+    const safetyTrend = calculateSafetyTrend(safetyScore)
 
     // Get fleet statistics from fleet management
     const totalVehicles = fleetVehicles.length || 0
     const activeVehicles = fleetVehicles.filter((v) => v.status === "active").length || 0
-
-    // Calculate safety score based on alerts (fewer alerts = higher score)
-    const totalAlerts = liveAlerts.length
-    const highSeverityAlerts = liveAlerts.filter((a) => a.severity === "high").length
-    const safetyScore = totalAlerts > 0
-      ? Math.max(0, Math.min(100, 100 - (highSeverityAlerts * 10) - (totalAlerts * 2)))
-      : 100
 
     return {
       totalVehicles,
       activeVehicles,
       driversOnDuty: driverStats.onDuty || 0,
       totalDrivers: driverStats.total || 0,
-      alertsToday: todayAlerts,
+      alertsToday: todayAlertsCount,
       todayActiveAlerts,
       todayResolvedAlerts,
-      safetyScore: Math.round(safetyScore),
-      complianceRate: 96, // This would need to come from another data source
+      complianceRate: 96,
+      safetyScore,
+      safetyTrend,
     }
   }, [liveAlerts, historyAlerts, driverStats, fleetVehicles])
 
@@ -272,12 +242,20 @@ export default function HomePage() {
     }
 
     return liveAlerts
+      .filter((alert) => isToday(alert.timestamp) || isWithinLast24Hours(alert.timestamp))
       .sort((a, b) => {
-        const timeA = a.timestamp ? (typeof a.timestamp === "string" ? new Date(a.timestamp).getTime() : a.timestamp) : 0
-        const timeB = b.timestamp ? (typeof b.timestamp === "string" ? new Date(b.timestamp).getTime() : b.timestamp) : 0
-        return timeB - timeA
+        const getTime = (ts: any) => {
+          if (!ts) return 0
+          if (typeof ts === "number") return ts < 10000000000 ? ts * 1000 : ts
+          if (typeof ts === "string") {
+            if (/^\d+$/.test(ts)) return Number(ts)
+            const parsed = new Date(ts).getTime()
+            return isNaN(parsed) ? 0 : parsed
+          }
+          return 0
+        }
+        return getTime(b.timestamp) - getTime(a.timestamp)
       })
-      .slice(0, 3)
       .map((alert) => {
         const display = getAlertDisplay(alert)
         const busNumber = alert.number_plate || alert.busNumber || "Unknown"
@@ -299,8 +277,11 @@ export default function HomePage() {
     { title: t("view_fleet"), href: "/fleet", icon: Car, color: "bg-blue-500" },
     { title: t("driver_management"), href: "/drivers", icon: Users, color: "bg-green-500" },
     { title: t("view_routes"), href: "/routes", icon: MapPin, color: "bg-purple-500" },
-    { title: t("view_analytics"), href: "/analytics", icon: Activity, color: "bg-orange-500" },
+    { title: t("reports"), href: "/reports", icon: FileText, color: "bg-orange-500" },
   ]
+
+  const scoreTrendNum = parseFloat(fleetStats.safetyTrend) || 0
+  const riskTrend = scoreTrendNum === 0 ? "0.0%" : `${scoreTrendNum > 0 ? "-" : "+"}${Math.abs(scoreTrendNum).toFixed(1)}%`
 
   return (
     <div className="space-y-6">
@@ -311,8 +292,20 @@ export default function HomePage() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 items-stretch">
+        <SafetyScoreCard 
+          score={fleetStats.safetyScore} 
+          trend={fleetStats.safetyTrend}
+          className="h-full"
+        />
+
+        <RiskLevelCard 
+          score={fleetStats.safetyScore}
+          trend={riskTrend}
+          className="h-full"
+        />
+
+        <Card className="flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t("total_vehicles")}</CardTitle>
             <Car className="h-4 w-4 text-blue-600" />
@@ -337,21 +330,11 @@ export default function HomePage() {
               {isLoadingDriverStats ? "..." : fleetStats.driversOnDuty}
             </div>
             <p className="text-xs text-muted-foreground">
-              {t("drivers_total_context").replace("{{total}}", String(isLoadingDriverStats ? "..." : fleetStats.totalDrivers))}
+              {t("drivers_total_context", { total: isLoadingDriverStats ? "..." : fleetStats.totalDrivers })}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("safety_score")}</CardTitle>
-            <Shield className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{fleetStats.safetyScore}%</div>
-            <Progress value={fleetStats.safetyScore} className="mt-2" />
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

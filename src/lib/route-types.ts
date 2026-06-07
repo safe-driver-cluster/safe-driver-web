@@ -11,9 +11,23 @@ export interface RouteStop {
   order: number
 }
 
+export type HazardType = "accident" | "school" | "speed" | "other"
+
+export interface HazardZone {
+  id?: string
+  name: string
+  location: string
+  latitude: number
+  longitude: number
+  type: HazardType
+  customType?: string
+  radius: number // in meters
+}
+
 export interface Route {
   id: string
   name: string
+  busNumber?: string
   startPoint: string
   endPoint: string
   distance: number // in kilometers
@@ -21,28 +35,29 @@ export interface Route {
   activeVehicles: number
   totalStops: number
   status: RouteStatus
-  onTimePerformance: number // percentage
-  averageSpeed: number // km/h
-  passengerLoad: number // percentage
-  safetyIncidents: number
   vehicles: string[] // array of vehicle IDs
   stops: RouteStop[]
+  hazardZones?: HazardZone[]
+  polyline?: string
   createdAt?: string
   updatedAt?: string
 }
 
 export interface CreateRouteInput {
   name: string
+  busNumber?: string
   startPoint: string
   endPoint: string
   distance: number
   estimatedTime: number
   stops: Omit<RouteStop, "status">[]
   vehicles?: string[]
+  hazardZones?: HazardZone[]
 }
 
 export interface UpdateRouteInput {
   name?: string
+  busNumber?: string
   startPoint?: string
   endPoint?: string
   distance?: number
@@ -50,12 +65,9 @@ export interface UpdateRouteInput {
   status?: RouteStatus
   activeVehicles?: number
   totalStops?: number
-  onTimePerformance?: number
-  averageSpeed?: number
-  passengerLoad?: number
-  safetyIncidents?: number
   vehicles?: string[]
   stops?: RouteStop[]
+  hazardZones?: HazardZone[]
 }
 
 export interface RouteFilters {

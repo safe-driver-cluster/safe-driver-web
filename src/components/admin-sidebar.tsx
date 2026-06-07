@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { useLiveAlerts } from "@/hooks/use-live-alerts"
+import { useLiveAlerts, isToday } from "@/hooks/use-live-alerts"
 import {
   LayoutDashboard,
   AlertTriangle,
@@ -14,7 +14,6 @@ import {
   MapPin,
   BarChart3,
   Shield,
-  HelpCircle,
 } from "lucide-react"
 
 import { useLanguage } from "@/components/language-provider"
@@ -26,8 +25,9 @@ const navigation = [
   { id: "fleet", href: "/fleet", icon: Bus },
   { id: "routes", href: "/routes", icon: MapPin },
   { id: "reports", href: "/reports", icon: FileText },
-  { id: "analytics", href: "/analytics", icon: BarChart3 },
+
   { id: "compliance", href: "/compliance", icon: Shield },
+  { id: "hazards", href: "/hazards", icon: AlertTriangle },
   { id: "settings", href: "/settings", icon: Settings },
 ]
 
@@ -70,14 +70,6 @@ export function AdminSidebar() {
         </div>
 
         <div className="mt-auto p-4 border-t border-gray-200">
-          <Link
-            href="/help"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
-          >
-            <HelpCircle className="h-5 w-5 text-gray-400" />
-            <span>{t("help_support")}</span>
-          </Link>
-
           <div className="mt-4 bg-muted rounded-lg p-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-medium">

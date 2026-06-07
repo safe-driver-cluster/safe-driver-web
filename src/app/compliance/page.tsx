@@ -25,6 +25,7 @@ export default function CompliancePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [priorityFilter, setPriorityFilter] = useState<string>("all")
+  const [dateFilter, setDateFilter] = useState<string>("all")
 
   // Fetch feedback
   useEffect(() => {
@@ -40,8 +41,28 @@ export default function CompliancePage() {
         const response = await fetch(`/api/feedback?${params.toString()}`)
         if (response.ok) {
           const data = await response.json()
+          
+          let filtered = data
+          if (dateFilter !== "all") {
+             const now = new Date();
+             filtered = filtered.filter((f: Feedback) => {
+               if (!f.timestamp && !f.createdAt) return false;
+               const fDate = new Date((f.timestamp || f.createdAt) as string);
+               if (dateFilter === "today") {
+                 return fDate.toDateString() === now.toDateString();
+               } else if (dateFilter === "week") {
+                 const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                 return fDate >= weekAgo;
+               } else if (dateFilter === "month") {
+                 const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                 return fDate >= monthAgo;
+               }
+               return true;
+             });
+          }
+          
           setFeedback(data)
-          setFilteredFeedback(data)
+          setFilteredFeedback(filtered)
         }
       } catch (error) {
         console.error("Error fetching feedback:", error)
@@ -54,7 +75,7 @@ export default function CompliancePage() {
     // Refresh every 30 seconds
     const interval = setInterval(fetchFeedback, 30000)
     return () => clearInterval(interval)
-  }, [typeFilter, priorityFilter, searchTerm])
+  }, [typeFilter, priorityFilter, searchTerm, dateFilter])
 
   // Calculate stats
   const stats = {
@@ -168,7 +189,7 @@ export default function CompliancePage() {
           <CardTitle>{t("filters")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -201,6 +222,17 @@ export default function CompliancePage() {
                 <SelectItem value="low">{t("low") || "Low"}</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder={t("select_timeframe") || "Timeframe"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("all_time") || "All Time"}</SelectItem>
+                <SelectItem value="today">{t("today") || "Today"}</SelectItem>
+                <SelectItem value="week">{t("this_week") || "This Week"}</SelectItem>
+                <SelectItem value="month">{t("this_month") || "This Month"}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -208,8 +240,8 @@ export default function CompliancePage() {
       {/* Feedback List */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("feedback_items")}</CardTitle>
-          <CardDescription>{t("feedback_items_desc")}</CardDescription>
+          <CardTitle>{t("recent_passenger_comments") || "Recent Passenger Comments"}</CardTitle>
+          <CardDescription>{t("feedback_items_desc") || "Review and manage comments and feedback from passengers."}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (

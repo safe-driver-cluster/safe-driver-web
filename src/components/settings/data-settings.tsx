@@ -138,7 +138,7 @@ export function DataSettings() {
               <HardDrive className="mr-2 h-4 w-4" />
               Manage Storage
             </Button>
-            <Button variant="outline" className="flex-1" variant="destructive">
+            <Button className="flex-1" variant="destructive">
               <Trash2 className="mr-2 h-4 w-4" />
               Clear Cache
             </Button>

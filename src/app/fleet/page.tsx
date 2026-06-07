@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
+import type { Route as RouteType } from "@/lib/route-types"
 
 import {
   Bus,
@@ -43,13 +44,13 @@ import {
   Gauge,
   Battery,
 
-  Shield,
 
 
   FileText,
   Loader2,
 } from "lucide-react"
 import type { Vehicle } from "@/lib/fleet-types"
+import { LiveTrackingDashboard } from "@/components/live-tracking-dashboard"
 import { useToast } from "@/hooks/use-toast"
 import { FleetMap } from "@/components/fleet-map"
 import { useLanguage } from "@/components/language-provider"
@@ -67,6 +68,8 @@ export default function FleetManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [routes, setRoutes] = useState<RouteType[]>([])
+  const [updatingStatusIds, setUpdatingStatusIds] = useState<Set<string>>(new Set())
   const { toast } = useToast()
   const { t } = useLanguage()
   const [newVehicle, setNewVehicle] = useState({
@@ -78,15 +81,16 @@ export default function FleetManagement() {
     year: "",
     driverName: "",
     route: "",
-    driver: "",
+    routeId: "",
+    locationDepot: "",
   })
 
 
 
   // Fetch vehicles
-  const fetchVehicles = async () => {
+  const fetchVehicles = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const params = new URLSearchParams()
       if (statusFilter !== "all") {
         params.append("status", statusFilter)
@@ -132,12 +136,24 @@ export default function FleetManagement() {
 
   useEffect(() => {
     fetchVehicles()
+    fetchRoutes()
   }, [])
+
+  const fetchRoutes = async () => {
+    try {
+      const response = await fetch("/api/routes")
+      if (!response.ok) throw new Error("Failed to fetch routes")
+      const data = await response.json()
+      setRoutes(data)
+    } catch (error) {
+      console.error("Error fetching routes:", error)
+    }
+  }
 
   // Refetch when filters change
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      fetchVehicles()
+      fetchVehicles(true)
     }, 300)
 
     return () => clearTimeout(timeoutId)
@@ -166,7 +182,7 @@ export default function FleetManagement() {
       vehicle.documentId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       vehicle.deviceId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       vehicle.busNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (vehicle.driverName || vehicle.driver || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (vehicle.driverName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (vehicle.route || "").toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = statusFilter === "all" || vehicle.status === statusFilter
     return matchesSearch && matchesStatus
@@ -225,6 +241,8 @@ export default function FleetManagement() {
           year: parseInt(newVehicle.year),
           driverName: newVehicle.driverName?.trim() || undefined,
           route: newVehicle.route?.trim() || undefined,
+          routeId: newVehicle.routeId?.trim() || undefined,
+          locationDepot: newVehicle.locationDepot?.trim() || undefined,
           documentId: newVehicle.documentId?.trim() || undefined,
           deviceId: newVehicle.deviceId?.trim() || undefined,
         }),
@@ -241,7 +259,7 @@ export default function FleetManagement() {
         description: t("vehicle_added"),
       })
 
-      setNewVehicle({ busNumberPlate: "", documentId: "", deviceId: "", busNumber: "", model: "", year: "", driverName: "", route: "", driver: "" })
+      setNewVehicle({ busNumberPlate: "", documentId: "", deviceId: "", busNumber: "", model: "", year: "", driverName: "", route: "", routeId: "", locationDepot: "" })
       setShowAddVehicle(false)
       fetchVehicles()
     } catch (error: any) {
@@ -260,6 +278,12 @@ export default function FleetManagement() {
 
   const updateVehicleStatus = async (vehicleId: string, newStatus: string) => {
     try {
+      // Add to updating set
+      setUpdatingStatusIds(prev => new Set(prev).add(vehicleId))
+      
+      // Optimistic update
+      setVehicles(prev => prev.map(v => v.id === vehicleId ? { ...v, status: newStatus as any } : v))
+
       const response = await fetch(`/api/fleet/${vehicleId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -274,16 +298,26 @@ export default function FleetManagement() {
 
       toast({
         title: "Success",
-        description: `Vehicle status updated to ${newStatus.replace("_", " ")}.`,
+        description: `Vehicle status updated to ${newStatus}.`,
       })
 
-      fetchVehicles()
+      // Silent refresh to ensure sync with server
+      await fetchVehicles(true)
     } catch (error: any) {
       console.error("Error updating vehicle status:", error)
+      // Rollback optimistic update on error
+      fetchVehicles(true)
+      
       toast({
         title: "Error",
         description: error?.message || "Failed to update vehicle status. Please try again.",
         variant: "destructive",
+      })
+    } finally {
+      setUpdatingStatusIds(prev => {
+        const next = new Set(prev)
+        next.delete(vehicleId)
+        return next
       })
     }
   }
@@ -345,6 +379,8 @@ export default function FleetManagement() {
           year: editingVehicle.year,
           driverName: editingVehicle.driverName?.trim() || undefined,
           route: editingVehicle.route?.trim() || undefined,
+          routeId: editingVehicle.routeId?.trim() || undefined,
+          locationDepot: editingVehicle.locationDepot?.trim() || undefined,
           documentId: editingVehicle.documentId?.trim() || undefined,
           deviceId: editingVehicle.deviceId?.trim() || undefined,
           status: editingVehicle.status,
@@ -421,13 +457,139 @@ export default function FleetManagement() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-neutral-900 mb-2">{t("fleet_management_system")}</h1>
-        <p className="text-neutral-600">{t("fleet_desc")}</p>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-neutral-900 mb-2">{t("fleet_management_system")}</h1>
+          <p className="text-neutral-600">{t("fleet_desc")}</p>
+        </div>
+        <Dialog open={showAddVehicle} onOpenChange={setShowAddVehicle}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Add New Bus
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader className="flex-shrink-0 pb-4">
+              <DialogTitle>{t("add_new_vehicle")}</DialogTitle>
+              <DialogDescription>{t("add_vehicle_desc")}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 overflow-y-auto flex-1 pr-2">
+              <div>
+                <Label htmlFor="busNumberPlate">
+                  {t("bus_number_plate")} <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="busNumberPlate"
+                  value={newVehicle.busNumberPlate}
+                  onChange={(e) => {
+                    let value = e.target.value.toUpperCase()
+                    // Auto-format: Add NB- prefix if user types numbers
+                    if (value && !value.startsWith("NB-")) {
+                      if (/^\d+$/.test(value.replace("NB-", ""))) {
+                        value = "NB-" + value.replace("NB-", "")
+                      }
+                    }
+                    // Limit to format NB-XXXX
+                    if (value.length > 7) value = value.substring(0, 7)
+                    setNewVehicle({ ...newVehicle, busNumberPlate: value })
+                  }}
+                  placeholder="NB-4565"
+                  required
+                  maxLength={7}
+                />
+                <p className="text-xs text-gray-500 mt-1">Format: NB-XXXX (e.g., NB-4565)</p>
+              </div>
+              <div>
+                <Label htmlFor="deviceId">{t("device_id")}</Label>
+                <Input
+                  id="deviceId"
+                  value={newVehicle.deviceId}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, deviceId: e.target.value.toUpperCase() })}
+                  placeholder="e.g., DEV-001"
+                />
+                <p className="text-xs text-gray-500 mt-1">GPS/Tracking device ID (optional)</p>
+              </div>
+              <div>
+                <Label htmlFor="model">{t("vehicle_model")}</Label>
+                <Input
+                  id="model"
+                  value={newVehicle.model}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, model: e.target.value })}
+                  placeholder="e.g., Tata LP 1618"
+                />
+              </div>
+              <div>
+                <Label htmlFor="year">{t("year")}</Label>
+                <Input
+                  id="year"
+                  type="number"
+                  value={newVehicle.year}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, year: e.target.value })}
+                  placeholder="2024"
+                />
+              </div>
+              <div>
+                <Label htmlFor="driver">{t("assigned_driver")}</Label>
+                <Input
+                  id="driver"
+                  value={newVehicle.driverName}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, driverName: e.target.value })}
+                  placeholder="Driver name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="route">{t("route_label")}</Label>
+                <Select
+                  value={newVehicle.routeId}
+                  onValueChange={(value) => {
+                    const selectedRoute = routes.find((r) => r.id === value)
+                    setNewVehicle({
+                      ...newVehicle,
+                      routeId: value,
+                      route: selectedRoute ? selectedRoute.name : "",
+                    })
+                  }}
+                >
+                  <SelectTrigger id="route">
+                    <SelectValue placeholder="Select a route" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {routes.map((route) => (
+                      <SelectItem key={route.id} value={route.id}>
+                        {route.name} {route.startPoint && route.endPoint ? `(${route.startPoint.replace(/ Bus Stop/i, "")} to ${route.endPoint.replace(/ Bus Stop/i, "")})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="locationDepot">Location (Depot)</Label>
+                <Input
+                  id="locationDepot"
+                  value={newVehicle.locationDepot || ""}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, locationDepot: e.target.value })}
+                  placeholder="e.g., Colombo"
+                />
+              </div>
+              <Button onClick={addVehicle} className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {t("loading")}
+                  </>
+                ) : (
+                  "Add New Bus"
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Fleet Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 gap-6 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t("total_vehicles")}</CardTitle>
@@ -444,20 +606,6 @@ export default function FleetManagement() {
 
 
 
-
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("safety_score")}</CardTitle>
-            <Shield className="h-4 w-4 text-safety-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-safety-600">
-              {vehicles.length > 0 ? Math.round(vehicles.reduce((acc, v) => acc + v.safetyScore, 0) / vehicles.length) : 0}%
-            </div>
-            <p className="text-xs text-muted-foreground">{t("fleet_average")}</p>
-          </CardContent>
-        </Card>
       </div>
 
       <Tabs defaultValue="vehicles" className="space-y-6">
@@ -476,104 +624,6 @@ export default function FleetManagement() {
                   <CardTitle>{t("fleet_overview")}</CardTitle>
                   <CardDescription>{t("fleet_overview_desc")}</CardDescription>
                 </div>
-                <Dialog open={showAddVehicle} onOpenChange={setShowAddVehicle}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      {t("add_vehicle")}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>{t("add_new_vehicle")}</DialogTitle>
-                      <DialogDescription>{t("add_vehicle_desc")}</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="busNumberPlate">
-                          {t("bus_number_plate")} <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="busNumberPlate"
-                          value={newVehicle.busNumberPlate}
-                          onChange={(e) => {
-                            let value = e.target.value.toUpperCase()
-                            // Auto-format: Add NB- prefix if user types numbers
-                            if (value && !value.startsWith("NB-")) {
-                              if (/^\d+$/.test(value.replace("NB-", ""))) {
-                                value = "NB-" + value.replace("NB-", "")
-                              }
-                            }
-                            // Limit to format NB-XXXX
-                            if (value.length > 7) value = value.substring(0, 7)
-                            setNewVehicle({ ...newVehicle, busNumberPlate: value })
-                          }}
-                          placeholder="NB-4565"
-                          required
-                          maxLength={7}
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Format: NB-XXXX (e.g., NB-4565)</p>
-                      </div>
-                      <div>
-                        <Label htmlFor="deviceId">{t("device_id")}</Label>
-                        <Input
-                          id="deviceId"
-                          value={newVehicle.deviceId}
-                          onChange={(e) => setNewVehicle({ ...newVehicle, deviceId: e.target.value.toUpperCase() })}
-                          placeholder="e.g., DEV-001"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">GPS/Tracking device ID (optional)</p>
-                      </div>
-                      <div>
-                        <Label htmlFor="model">{t("vehicle_model")}</Label>
-                        <Input
-                          id="model"
-                          value={newVehicle.model}
-                          onChange={(e) => setNewVehicle({ ...newVehicle, model: e.target.value })}
-                          placeholder="e.g., Tata LP 1618"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="year">{t("year")}</Label>
-                        <Input
-                          id="year"
-                          type="number"
-                          value={newVehicle.year}
-                          onChange={(e) => setNewVehicle({ ...newVehicle, year: e.target.value })}
-                          placeholder="2024"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="driver">{t("assigned_driver")}</Label>
-                        <Input
-                          id="driver"
-                          value={newVehicle.driverName}
-                          onChange={(e) => setNewVehicle({ ...newVehicle, driverName: e.target.value })}
-                          placeholder="Driver name"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="route">{t("route_label")}</Label>
-                        <Input
-                          id="route"
-                          value={newVehicle.route}
-                          onChange={(e) => setNewVehicle({ ...newVehicle, route: e.target.value })}
-                          placeholder="e.g., Colombo - Kandy"
-                        />
-                      </div>
-                      <Button onClick={addVehicle} className="w-full" disabled={isSubmitting}>
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            {t("loading")}
-                          </>
-                        ) : (
-                          t("add_vehicle")
-                        )}
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
               </div>
             </CardHeader>
             <CardContent>
@@ -658,18 +708,34 @@ export default function FleetManagement() {
                           <div className="grid grid-cols-2 gap-4 text-sm">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4 text-muted-foreground" />
-                              <span>{vehicle.driverName || (vehicle as any).driver || t("no_driver_assigned")}</span>
+                              <span>{vehicle.driverName || t("no_driver_assigned")}</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Route className="h-4 w-4 text-muted-foreground" />
-                              <span>{vehicle.route || t("no_route_assigned")}</span>
+                            <div className="flex items-start gap-2">
+                              <Route className="h-4 w-4 text-muted-foreground mt-0.5" />
+                              <div className="flex flex-col min-w-0">
+                                <span className="truncate">{vehicle.route || t("no_route_assigned")}</span>
+                                {vehicle.route && (() => {
+                                  const r = routes.find(rt => 
+                                    (vehicle.routeId && rt.id === vehicle.routeId) || 
+                                    (!vehicle.routeId && rt.name === vehicle.route)
+                                  );
+                                  if (r && r.startPoint && r.endPoint) {
+                                    return (
+                                      <span className="text-xs text-muted-foreground truncate mt-0.5">
+                                        {r.startPoint.replace(/ Bus Stop/i, "")} to {r.endPoint.replace(/ Bus Stop/i, "")}
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
                             </div>
                           </div>
 
                           {/* Location */}
                           <div className="flex items-center gap-2 text-sm">
                             <MapPin className="h-4 w-4 text-muted-foreground" />
-                            <span>{vehicle.location.address}</span>
+                            <span>{vehicle.locationDepot ? `${vehicle.locationDepot} Depot` : (vehicle.location?.address || "Colombo Depot")}</span>
                           </div>
 
                           {/* Action Buttons */}
@@ -683,22 +749,39 @@ export default function FleetManagement() {
                               {t("edit")}
                             </Button>
                             <Select
-                              value={vehicle.status}
-                              onValueChange={(value) => {
-                                if (vehicle.id) {
-                                  updateVehicleStatus(vehicle.id, value)
-                                }
-                              }}
-                            >
-                              <SelectTrigger className="h-8 text-xs w-[120px] flex-shrink-0">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="active">{t("active")}</SelectItem>
-
-                                <SelectItem value="inactive">{t("inactive")}</SelectItem>
-                              </SelectContent>
-                            </Select>
+                               value={vehicle.status}
+                               disabled={updatingStatusIds.has(vehicle.id)}
+                               onValueChange={(value) => {
+                                 if (vehicle.id) {
+                                   updateVehicleStatus(vehicle.id, value)
+                                 }
+                               }}
+                             >
+                               <SelectTrigger className={`h-8 text-xs w-[120px] flex-shrink-0 ${updatingStatusIds.has(vehicle.id) ? "opacity-50 cursor-not-allowed" : ""}`}>
+                                 <div className="flex items-center gap-2">
+                                   {updatingStatusIds.has(vehicle.id) ? (
+                                     <Loader2 className="h-3 w-3 animate-spin" />
+                                   ) : (
+                                     <div className={`h-2 w-2 rounded-full ${vehicle.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                   )}
+                                   <SelectValue />
+                                 </div>
+                               </SelectTrigger>
+                               <SelectContent>
+                                 <SelectItem value="active">
+                                   <div className="flex items-center gap-2">
+                                     <div className="h-2 w-2 rounded-full bg-green-500" />
+                                     {t("active")}
+                                   </div>
+                                 </SelectItem>
+                                 <SelectItem value="inactive">
+                                   <div className="flex items-center gap-2">
+                                     <div className="h-2 w-2 rounded-full bg-gray-400" />
+                                     {t("inactive")}
+                                   </div>
+                                 </SelectItem>
+                               </SelectContent>
+                             </Select>
                             <Button
                               size="sm"
                               variant="destructive"
@@ -721,87 +804,14 @@ export default function FleetManagement() {
         </TabsContent>
 
         {/* Live Tracking Tab */}
-        <TabsContent value="tracking" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("real_time_tracking")}</CardTitle>
-              <CardDescription>{t("real_time_desc")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* Interactive Map */}
-              <div className="mb-6">
-                <FleetMap
-                  vehicles={vehicles.filter((v) => v.status === "active")}
-                  selectedVehicle={selectedVehicle}
-                  onVehicleClick={setSelectedVehicle}
-                />
-              </div>
-
-              {/* Vehicle Status List */}
-              <div className="space-y-3">
-                <h4 className="font-semibold">{t("active_vehicles_title")}</h4>
-                {vehicles
-                  .filter((v) => v.status === "active")
-                  .map((vehicle) => (
-                    <div key={vehicle.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                        <div>
-                          <p className="font-medium">{vehicle.busNumberPlate || vehicle.busNumber || "N/A"}</p>
-                          <p className="text-sm text-gray-600">{vehicle.location.address}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <div className="text-center">
-                          <p className="text-gray-500">{t("speed")}</p>
-                          <p className="font-medium">{Math.round(vehicle.speed)} km/h</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-gray-500">{t("driver")}</p>
-                          <p className="font-medium">{vehicle.driverName || t("no_driver")}</p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setSelectedVehicle(vehicle)}
-                        >
-                          <Navigation className="h-4 w-4 mr-1" />
-                          {t("track")}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="tracking" className="mt-0">
+          <LiveTrackingDashboard vehicles={vehicles} />
         </TabsContent>
 
 
 
         {/* Fleet Analytics Tab */}
         <TabsContent value="analytics" className="space-y-6">
-          <div className="grid grid-cols-1 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>{t("fleet_performance")}</CardTitle>
-                <CardDescription>{t("kpi")}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-
-
-                <div className="flex justify-between items-center">
-                  <span>Fleet Utilization</span>
-                  <span className="font-bold text-blue-600">87%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>On-Time Performance</span>
-                  <span className="font-bold text-green-600">94%</span>
-                </div>
-              </CardContent>
-            </Card>
-
-
-          </div>
 
           <Card>
             <CardHeader>
@@ -861,12 +871,6 @@ export default function FleetManagement() {
                 <div className="text-center p-3 border rounded-lg">
                   <div className="text-2xl font-bold text-blue-600">{Math.round(selectedVehicle.speed)}</div>
                   <div className="text-sm text-gray-600">Speed (km/h)</div>
-                </div>
-
-
-                <div className="text-center p-3 border rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">{selectedVehicle.safetyScore}%</div>
-                  <div className="text-sm text-gray-600">Safety Score</div>
                 </div>
               </div>
 
@@ -974,11 +978,37 @@ export default function FleetManagement() {
               </div>
               <div>
                 <Label htmlFor="edit-route">Route</Label>
+                <Select
+                  value={editingVehicle.routeId}
+                  onValueChange={(value) => {
+                    const selectedRoute = routes.find((r) => r.id === value)
+                    setEditingVehicle({
+                      ...editingVehicle,
+                      routeId: value,
+                      route: selectedRoute ? selectedRoute.name : "",
+                    })
+                  }}
+                >
+                  <SelectTrigger id="edit-route">
+                    <SelectValue placeholder="Select a route" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {routes.map((route) => (
+                      <SelectItem key={route.id} value={route.id}>
+                        {route.name} {route.startPoint && route.endPoint ? `(${route.startPoint.replace(/ Bus Stop/i, "")} to ${route.endPoint.replace(/ Bus Stop/i, "")})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-locationDepot">Location (Depot)</Label>
                 <Input
-                  id="edit-route"
-                  value={editingVehicle.route || ""}
-                  onChange={(e) => setEditingVehicle({ ...editingVehicle, route: e.target.value })}
-                  placeholder="e.g., Colombo - Kandy"
+                  id="edit-locationDepot"
+                  value={editingVehicle.locationDepot || ""}
+                  onChange={(e) => setEditingVehicle({ ...editingVehicle, locationDepot: e.target.value })}
+                  placeholder="e.g., Colombo Depot"
                 />
               </div>
               <div>

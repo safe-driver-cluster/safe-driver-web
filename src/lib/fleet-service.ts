@@ -1,4 +1,5 @@
 import { firestoreService } from "./firebase/firestore"
+import { routeService } from "./route-service"
 import type {
   Vehicle,
   VehicleStatus,
@@ -30,10 +31,7 @@ export const fleetService = {
     try {
       const constraints: any[] = []
 
-      // Apply status filter server-side
-      if (filters?.status && filters.status !== "all") {
-        constraints.push(firestoreService.where("status", "==", filters.status))
-      }
+
 
 
 
@@ -49,6 +47,10 @@ export const fleetService = {
       let vehicles = await firestoreService.getCollection<Vehicle>(VEHICLES_COLLECTION, constraints)
 
       // Apply client-side filters that can't be done server-side (text search)
+      if (filters?.status && filters.status !== "all") {
+        vehicles = vehicles.filter((v) => v.status === filters.status)
+      }
+
       if (filters?.search) {
         const searchLower = filters.search.toLowerCase()
         vehicles = vehicles.filter(
@@ -132,10 +134,11 @@ export const fleetService = {
         driverId: input.driverId,
         driverName: input.driverName,
         route: input.route || "",
+        routeId: input.routeId,
+        locationDepot: input.locationDepot || "Colombo",
         mileage: input.mileage ?? 0,
         speed: 0,
         batteryLevel: 100,
-        safetyScore: 100,
         alerts: 0,
         createdAt: now,
         updatedAt: now,
@@ -145,6 +148,16 @@ export const fleetService = {
       // busNumberPlate is already included in vehicleData from the vehicle object above
 
       await firestoreService.setDocument(VEHICLES_COLLECTION, id, vehicleData)
+      
+      // If a route is assigned, update the route monitoring mapping
+      if (vehicle.routeId) {
+        try {
+          await routeService.addVehicle(vehicle.routeId, id)
+        } catch (routeError) {
+          console.error("Error mapping vehicle to route:", routeError)
+          // Don't fail the whole creation if mapping fails
+        }
+      }
 
       return vehicle
     } catch (error) {
@@ -194,6 +207,20 @@ export const fleetService = {
         // Delete old document
         await firestoreService.deleteDocument(VEHICLES_COLLECTION, id)
 
+        // Handle route re-assignment if routeId changed
+        if (input.routeId !== undefined && input.routeId !== existingVehicle.routeId) {
+          if (existingVehicle.routeId) {
+            await routeService.removeVehicle(existingVehicle.routeId, id).catch(console.error)
+          }
+          if (input.routeId) {
+            await routeService.addVehicle(input.routeId, newId).catch(console.error)
+          }
+        } else if (existingVehicle.routeId) {
+           // If ID changed but routeId didn't, we still need to update the ID in the route's vehicles array
+           await routeService.removeVehicle(existingVehicle.routeId, id).catch(console.error)
+           await routeService.addVehicle(existingVehicle.routeId, newId).catch(console.error)
+        }
+
         return newVehicleData as Vehicle
       }
 
@@ -205,6 +232,16 @@ export const fleetService = {
       }
 
       await firestoreService.updateDocument(VEHICLES_COLLECTION, id, updatedVehicle)
+
+      // Handle route re-assignment for normal update
+      if (input.routeId !== undefined && input.routeId !== existingVehicle.routeId) {
+        if (existingVehicle.routeId) {
+          await routeService.removeVehicle(existingVehicle.routeId, id).catch(console.error)
+        }
+        if (input.routeId) {
+          await routeService.addVehicle(input.routeId, id).catch(console.error)
+        }
+      }
 
       return {
         ...existingVehicle,
@@ -225,6 +262,11 @@ export const fleetService = {
       }
 
       await firestoreService.deleteDocument(VEHICLES_COLLECTION, id)
+
+      // Remove from route if assigned
+      if (vehicle.routeId) {
+        await routeService.removeVehicle(vehicle.routeId, id).catch(console.error)
+      }
     } catch (error) {
       console.error("Error deleting vehicle:", error)
       throw new Error("Failed to delete vehicle")

@@ -29,12 +29,6 @@ export async function GET(request: NextRequest) {
     const filters = {
       status: searchParams.get("status") || undefined,
       search: searchParams.get("search") || undefined,
-      minSafetyScore: searchParams.get("minSafetyScore")
-        ? parseInt(searchParams.get("minSafetyScore")!)
-        : undefined,
-      maxSafetyScore: searchParams.get("maxSafetyScore")
-        ? parseInt(searchParams.get("maxSafetyScore")!)
-        : undefined,
       limit: searchParams.get("limit")
         ? parseInt(searchParams.get("limit")!)
         : 100, // Default limit for performance
@@ -77,7 +71,7 @@ export async function POST(request: NextRequest) {
     const validationResult = createDriverSchema.safeParse(body)
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Validation failed", details: validationResult.error.errors },
+        { error: "Validation failed", details: validationResult.error.issues },
         { status: 400 },
       )
     }

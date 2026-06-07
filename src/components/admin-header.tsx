@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -11,7 +12,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { Bell, Settings, LogOut, Shield, Search, Mic, AlertTriangle, MessageSquare, Users, Bus, MapPin, FileText, CheckCircle, Clock, X } from "lucide-react"
+import { Bell, Settings, LogOut, Search, Mic, AlertTriangle, MessageSquare, Users, Bus, MapPin, FileText, CheckCircle, Clock, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useLiveAlerts } from "@/hooks/use-live-alerts"
@@ -38,11 +39,22 @@ interface Notification {
 }
 
 import { useLanguage } from "@/components/language-provider"
+import { useAuth } from "@/components/auth-provider"
 
 export function AdminHeader() {
+  const { user, signOut } = useAuth()
   const router = useRouter()
   const { alerts: liveAlerts } = useLiveAlerts()
   const { t } = useLanguage()
+
+  const initials = user?.displayName
+    ? user.displayName
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "A"
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -406,7 +418,9 @@ export function AdminHeader() {
       <div className="flex items-center justify-between">
         <div className="flex items-center">
           <div className="flex items-center space-x-2">
-            <Shield className="h-7 w-7 text-primary-600" />
+            <div className="flex-shrink-0 w-8 h-8">
+              <Image src="/logo.png" alt="SafeDriver Logo" width={32} height={32} className="object-contain w-8 h-8" />
+            </div>
             <div className="hidden sm:block">
               <h1 className="text-lg md:text-xl font-bold text-foreground">SafeDriver</h1>
               <p className="text-xs text-muted-foreground hidden md:block">{t("transport_safety")}</p>
@@ -590,18 +604,22 @@ export function AdminHeader() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-medium">
-                  A
+                  {initials}
                 </div>
                 <div className="hidden md:block text-left">
-                  <p className="text-sm font-medium text-foreground">{t("admin_user")}</p>
-                  <p className="text-xs text-muted-foreground">admin@safedriver.com</p>
+                  <p className="text-sm font-medium text-foreground truncate max-w-[120px]">
+                    {user?.displayName || t("admin_user")}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate max-w-[120px]">
+                    {user?.email || "admin@safedriver.com"}
+                  </p>
                 </div>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <div className="px-2 py-1.5 border-b">
-                <p className="text-sm font-medium">Admin User</p>
-                <p className="text-xs text-gray-500">admin@safedriver.com</p>
+                <p className="text-sm font-medium truncate">{user?.displayName || "Admin User"}</p>
+                <p className="text-xs text-gray-500 truncate">{user?.email || "admin@safedriver.com"}</p>
               </div>
               <DropdownMenuItem asChild>
                 <Link href="/settings" className="cursor-pointer flex items-center">
@@ -609,15 +627,9 @@ export function AdminHeader() {
                   Settings
                 </Link>
               </DropdownMenuItem>
+
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/voice-settings" className="cursor-pointer flex items-center">
-                  <Mic className="h-4 w-4 mr-2" />
-                  Voice Settings
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-600">
+              <DropdownMenuItem onClick={signOut} className="cursor-pointer text-red-600 focus:text-red-600">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </DropdownMenuItem>
@@ -634,7 +646,7 @@ export function AdminHeader() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 type="text"
-                placeholder="Search drivers, vehicles, routes..."
+                placeholder={t("search_placeholder")}
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value)

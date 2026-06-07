@@ -28,7 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     // Add signature if secret is provided
-    const headers = { ...webhook.headers }
+    const headers: Record<string, string> = { ...webhook.headers }
     if (webhook.secret) {
       const signature = await generateSignature(JSON.stringify(testPayload), webhook.secret)
       headers["X-SafeDriver-Signature"] = signature

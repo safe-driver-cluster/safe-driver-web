@@ -1,6 +1,6 @@
-const CACHE_NAME = "safedriver-v2"
-const STATIC_CACHE = "safedriver-static-v2"
-const DYNAMIC_CACHE = "safedriver-dynamic-v2"
+const CACHE_NAME = "safedriver-v3"
+const STATIC_CACHE = "safedriver-static-v3"
+const DYNAMIC_CACHE = "safedriver-dynamic-v3"
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
@@ -281,24 +281,25 @@ async function handleApiRequest(request) {
   }
 }
 
-// Navigation request handler - Cache first for app shell
+// Navigation request handler - Network first, fallback to cache
 async function handleNavigationRequest(request) {
   try {
-    // Try cache first for app shell
+    // Try network first
+    const networkResponse = await fetch(request)
+
+    // Cache the response if it was successful
+    if (networkResponse.ok) {
+      const cache = await caches.open(STATIC_CACHE)
+      cache.put(request, networkResponse.clone())
+    }
+
+    return networkResponse
+  } catch (error) {
+    // If network fails (offline), try to serve from cache
     const cachedResponse = await caches.match(request)
     if (cachedResponse) {
       return cachedResponse
     }
-
-    // Fallback to network
-    const networkResponse = await fetch(request)
-
-    // Cache the response
-    const cache = await caches.open(STATIC_CACHE)
-    cache.put(request, networkResponse.clone())
-
-    return networkResponse
-  } catch (error) {
     // Return offline page
     return caches.match("/offline") || new Response("Offline")
   }

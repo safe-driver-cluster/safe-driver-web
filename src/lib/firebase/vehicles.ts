@@ -39,7 +39,6 @@ export interface Vehicle {
   speed: number
   engineTemp: number
   batteryLevel: number
-  safetyScore: number
   alerts: number
   serviceHistory: Array<{
     date: string

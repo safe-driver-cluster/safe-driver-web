@@ -6,7 +6,7 @@ import { translations, Language } from "@/lib/translations"
 type LanguageContextType = {
     language: Language
     setLanguage: (lang: Language) => void
-    t: (key: string) => string
+    t: (key: string, replacements?: Record<string, string | number>) => string
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined)
@@ -29,13 +29,21 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         document.documentElement.lang = lang
     }
 
-    const t = (key: string) => {
+    const t = (key: string, replacements?: Record<string, string | number>) => {
         // Basic lookup
         // If not mounted, use default English to avoid hydration mismatch if possible
-        // (Though simple string replacement often works fine if we accept the flip)
         const currentLang = mounted ? language : "en-US"
         const langData = translations[currentLang] || translations["en-US"]
-        return (langData as any)[key] || key
+        let translation = (langData as any)[key] || key
+
+        // Handle replacements if provided
+        if (replacements && typeof translation === "string") {
+            Object.entries(replacements).forEach(([placeholder, value]) => {
+                translation = translation.replace(new RegExp(`{{${placeholder}}}`, "g"), String(value))
+            })
+        }
+
+        return translation
     }
 
     return (

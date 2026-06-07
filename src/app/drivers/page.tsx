@@ -31,18 +31,40 @@ import { Users, Phone, Mail, Activity, Plus, Search, Eye, Trash2, Loader2, Edit 
 import type { Driver } from "@/lib/driver-types"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/components/language-provider"
+import { useLiveAlerts, isToday } from "@/hooks/use-live-alerts"
+import { useMemo } from "react"
 
 export default function DriversPage() {
   const { t } = useLanguage()
   const [drivers, setDrivers] = useState<Driver[]>([])
+  
+  // Real-time alerts integration
+  const { alerts: liveAlerts } = useLiveAlerts()
+  
+  // Calculate real-time alert counts for each driver
+  const driversWithAlertCounts = useMemo(() => {
+    // Include active/acknowledged alerts (unresolved risks) and today's alerts
+    const activeOrTodayAlerts = liveAlerts.filter(alert => 
+      alert.status === "active" || alert.status === "acknowledged" || isToday(alert.timestamp)
+    )
+    
+    return drivers.map(driver => {
+      // Find alerts for this driver's assigned bus
+      if (!driver.busNumber) return { ...driver, alertCount: 0 }
+      
+      const count = activeOrTodayAlerts.filter(alert => 
+        (alert.number_plate === driver.busNumber || alert.busNumber === driver.busNumber)
+      ).length
+      
+      return { ...driver, alertCount: count }
+    })
+  }, [drivers, liveAlerts])
+
   const [stats, setStats] = useState({
     total: 0,
     onDuty: 0,
     offDuty: 0,
     suspended: 0,
-    highPerformers: 0,
-    needAttention: 0,
-    averageSafetyScore: 0,
   })
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -74,12 +96,6 @@ export default function DriversPage() {
       onDuty: driversData.filter((d) => d.status === "on_duty").length,
       offDuty: driversData.filter((d) => d.status === "off_duty").length,
       suspended: driversData.filter((d) => d.status === "suspended").length,
-      highPerformers: driversData.filter((d) => d.safetyScore >= 90).length,
-      needAttention: driversData.filter((d) => d.safetyScore < 80).length,
-      averageSafetyScore:
-        driversData.length > 0
-          ? Math.round(driversData.reduce((sum, d) => sum + d.safetyScore, 0) / driversData.length)
-          : 0,
     }
   }
 
@@ -181,11 +197,6 @@ export default function DriversPage() {
     }
   }
 
-  const getSafetyScoreColor = (score: number) => {
-    if (score >= 90) return "text-green-600"
-    if (score >= 75) return "text-yellow-600"
-    return "text-red-600"
-  }
 
   const handleAddDriver = async () => {
     if (!newDriver.name || !newDriver.licenseNumber || !newDriver.phone || !newDriver.email) {
@@ -400,7 +411,6 @@ export default function DriversPage() {
           address: editingDriver.address || "",
           experience: editingDriver.experience || "",
           status: editingDriver.status,
-          safetyScore: editingDriver.safetyScore,
         }),
       })
 
@@ -512,7 +522,10 @@ export default function DriversPage() {
                 <Input
                   id="phone"
                   value={newDriver.phone}
-                  onChange={(e) => setNewDriver({ ...newDriver, phone: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^\d\s+]/g, "")
+                    setNewDriver({ ...newDriver, phone: val })
+                  }}
                   placeholder="+94 77 123 4567"
                 />
               </div>
@@ -579,7 +592,7 @@ export default function DriversPage() {
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -599,28 +612,6 @@ export default function DriversPage() {
                 <p className="text-2xl font-bold text-green-600">{stats.onDuty}</p>
               </div>
               <Activity className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">{t("high_performers")}</p>
-                <p className="text-2xl font-bold text-green-600">{stats.highPerformers}</p>
-              </div>
-              <Activity className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">{t("need_attention")}</p>
-                <p className="text-2xl font-bold text-red-600">{stats.needAttention}</p>
-              </div>
-              <Activity className="h-8 w-8 text-red-600" />
             </div>
           </CardContent>
         </Card>
@@ -671,14 +662,10 @@ export default function DriversPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {filteredDrivers.map((driver) => (
+            {driversWithAlertCounts.map((driver) => (
               <Card
                 key={driver.id}
-                className="group hover:shadow-lg transition-all duration-300 border-l-[6px] overflow-hidden"
-                style={{
-                  borderLeftColor:
-                    driver.safetyScore >= 90 ? "#22c55e" : driver.safetyScore >= 75 ? "#eab308" : "#ef4444",
-                }}
+                className="group hover:shadow-lg transition-all duration-300 border-l-[6px] overflow-hidden border-l-primary/10"
               >
                 <CardContent className="p-6">
                   <div className="flex flex-col lg:flex-row gap-6 items-center lg:items-center">
@@ -735,13 +722,6 @@ export default function DriversPage() {
 
                     {/* Stats Section with vertical separator */}
                     <div className="flex w-full lg:w-auto items-center justify-around lg:justify-center gap-8 px-6 py-3 lg:py-0 lg:border-l lg:border-r border-y lg:border-y-0 border-border bg-muted/20 lg:bg-transparent rounded-lg lg:rounded-none">
-                      <div className="text-center">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Safety</p>
-                        <div className={`text-3xl font-black tabular-nums tracking-tight ${getSafetyScoreColor(driver.safetyScore)}`}>
-                          {driver.safetyScore}
-                          <span className="text-base font-bold ml-0.5">%</span>
-                        </div>
-                      </div>
                       <div className="text-center">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Alerts</p>
                         <div className="text-3xl font-black tabular-nums tracking-tight text-foreground">
@@ -848,7 +828,10 @@ export default function DriversPage() {
                   <Input
                     id="edit-phone"
                     value={editingDriver.phone}
-                    onChange={(e) => setEditingDriver({ ...editingDriver, phone: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^\d\s+]/g, "")
+                      setEditingDriver({ ...editingDriver, phone: val })
+                    }}
                     placeholder="+94 77 123 4567"
                   />
                 </div>
@@ -912,20 +895,9 @@ export default function DriversPage() {
                       <SelectItem value="on_duty">On Duty</SelectItem>
                       <SelectItem value="off_duty">Off Duty</SelectItem>
                       <SelectItem value="suspended">Suspended</SelectItem>
-                      <SelectItem value="on_break">On Break</SelectItem>
+
                     </SelectContent>
                   </Select>
-                </div>
-                <div>
-                  <Label htmlFor="edit-safety-score">Safety Score (0-100)</Label>
-                  <Input
-                    id="edit-safety-score"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={editingDriver.safetyScore}
-                    onChange={(e) => setEditingDriver({ ...editingDriver, safetyScore: parseInt(e.target.value) || 0 })}
-                  />
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={handleUpdateDriver} className="flex-1" disabled={isSubmitting}>
@@ -965,10 +937,9 @@ export default function DriversPage() {
                 <DialogDescription>Complete driver information and performance history</DialogDescription>
               </DialogHeader>
               <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="profile">Profile</TabsTrigger>
                   <TabsTrigger value="performance">Performance</TabsTrigger>
-                  <TabsTrigger value="history">History</TabsTrigger>
                 </TabsList>
                 <TabsContent value="profile" className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -1014,14 +985,6 @@ export default function DriversPage() {
                   <div className="grid grid-cols-3 gap-4">
                     <Card>
                       <CardContent className="p-4 text-center">
-                        <p className="text-sm text-gray-600">Safety Score</p>
-                        <p className={`text-3xl font-bold ${getSafetyScoreColor(selectedDriver.safetyScore)}`}>
-                          {selectedDriver.safetyScore}%
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
                         <p className="text-sm text-gray-600">Total Alerts</p>
                         <p className="text-3xl font-bold">{selectedDriver.alertCount}</p>
                       </CardContent>
@@ -1036,20 +999,7 @@ export default function DriversPage() {
                     </Card>
                   </div>
                 </TabsContent>
-                <TabsContent value="history" className="space-y-4">
-                  <div>
-                    <Label>Last Alert</Label>
-                    <p className="font-medium">{selectedDriver.lastAlert || "Never"}</p>
-                  </div>
-                  <div>
-                    <Label>Recent Activity</Label>
-                    <div className="space-y-2 mt-2">
-                      <p className="text-sm">• Completed route Colombo - Kandy (2 hours ago)</p>
-                      <p className="text-sm">• Safety training completed (1 week ago)</p>
-                      <p className="text-sm">• Vehicle inspection passed (2 weeks ago)</p>
-                    </div>
-                  </div>
-                </TabsContent>
+
               </Tabs>
             </DialogContent>
           </Dialog>

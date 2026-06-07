@@ -3,9 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Palette, Moon, Sun, Laptop } from "lucide-react"
 
@@ -15,11 +13,6 @@ export function AppearanceSettings() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [colorScheme, setColorScheme] = useState("blue")
-  const [reducedMotion, setReducedMotion] = useState(false)
-  const [highContrast, setHighContrast] = useState(false)
-  const [fontSize, setFontSize] = useState("medium")
-  const [sidebarCompact, setSidebarCompact] = useState(false)
-  const [dashboardLayout, setDashboardLayout] = useState("grid")
 
   useEffect(() => {
     setMounted(true)
@@ -139,67 +132,6 @@ export function AppearanceSettings() {
               </Label>
             </div>
           </RadioGroup>
-        </div>
-
-        <div className="space-y-4 pt-4">
-          <h3 className="text-lg font-medium">Accessibility</h3>
-
-          <div className="flex items-center justify-between space-y-0">
-            <div className="space-y-0.5">
-              <Label htmlFor="reduced-motion">Reduced Motion</Label>
-              <p className="text-sm text-muted-foreground">Minimize animations throughout the interface</p>
-            </div>
-            <Switch id="reduced-motion" checked={reducedMotion} onCheckedChange={setReducedMotion} />
-          </div>
-
-          <div className="flex items-center justify-between space-y-0">
-            <div className="space-y-0.5">
-              <Label htmlFor="high-contrast">High Contrast</Label>
-              <p className="text-sm text-muted-foreground">Increase contrast for better visibility</p>
-            </div>
-            <Switch id="high-contrast" checked={highContrast} onCheckedChange={setHighContrast} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="font-size">Font Size</Label>
-            <Select value={fontSize} onValueChange={setFontSize}>
-              <SelectTrigger id="font-size">
-                <SelectValue placeholder="Select font size" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="small">Small</SelectItem>
-                <SelectItem value="medium">Medium (Default)</SelectItem>
-                <SelectItem value="large">Large</SelectItem>
-                <SelectItem value="x-large">Extra Large</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="space-y-4 pt-4">
-          <h3 className="text-lg font-medium">Layout Preferences</h3>
-
-          <div className="flex items-center justify-between space-y-0">
-            <div className="space-y-0.5">
-              <Label htmlFor="sidebar-compact">Compact Sidebar</Label>
-              <p className="text-sm text-muted-foreground">Use a more compact sidebar layout</p>
-            </div>
-            <Switch id="sidebar-compact" checked={sidebarCompact} onCheckedChange={setSidebarCompact} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="dashboard-layout">Dashboard Layout</Label>
-            <Select value={dashboardLayout} onValueChange={setDashboardLayout}>
-              <SelectTrigger id="dashboard-layout">
-                <SelectValue placeholder="Select dashboard layout" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="grid">Grid (Default)</SelectItem>
-                <SelectItem value="list">List</SelectItem>
-                <SelectItem value="compact">Compact</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
         <div className="pt-4">

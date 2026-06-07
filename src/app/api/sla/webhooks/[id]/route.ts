@@ -20,7 +20,7 @@ const updateWebhookSchema = z.object({
     .optional(),
   isActive: z.boolean().optional(),
   secret: z.string().optional(),
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
   retryPolicy: z
     .object({
       maxRetries: z.number().min(0).max(10),
@@ -129,7 +129,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ success: false, error: "Validation error", details: error.errors }, { status: 400 })
+      return NextResponse.json({ success: false, error: "Validation error", details: error.issues }, { status: 400 })
     }
     console.error("Error updating webhook:", error)
     return NextResponse.json({ success: false, error: "Failed to update webhook" }, { status: 500 })

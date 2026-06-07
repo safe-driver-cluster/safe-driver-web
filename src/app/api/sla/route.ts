@@ -20,6 +20,7 @@ const createSlaSchema = z.object({
     enabled: z.boolean(),
     timezone: z.string(),
     schedule: z.record(
+      z.string(),
       z.object({
         start: z.string(),
         end: z.string(),
@@ -41,7 +42,7 @@ const createSlaSchema = z.object({
       actions: z.array(
         z.object({
           type: z.enum(["assign", "notify", "priority_increase", "status_change", "webhook"]),
-          parameters: z.record(z.any()),
+          parameters: z.record(z.string(), z.any()),
           delay: z.number(),
         }),
       ),
@@ -180,7 +181,7 @@ export async function POST(request: NextRequest) {
     )
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ success: false, error: "Validation error", details: error.errors }, { status: 400 })
+      return NextResponse.json({ success: false, error: "Validation error", details: error.issues }, { status: 400 })
     }
     console.error("Error creating SLA rule:", error)
     return NextResponse.json({ success: false, error: "Failed to create SLA rule" }, { status: 500 })
