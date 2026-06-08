@@ -391,15 +391,30 @@ export function useLiveAlerts() {
                 const currentStatus = alertStatuses[alert.id] || (latest as any).status || "active"
                 alert.status = currentStatus
 
-                // Only add to the map if this EXACT event ID isn't already there
-                if (!alertMap.has(alert.id)) {
+                // Check if this alert is already in the map (from history) by matching deviceId, timestamp, and message
+                const isMapDuplicate = Array.from(alertMap.values()).some(a =>
+                  a.deviceId === alert.deviceId &&
+                  a.timestamp === alert.timestamp &&
+                  a.description === alert.description
+                )
+
+                // Only add to the map if not already there
+                if (!isMapDuplicate && !alertMap.has(alert.id)) {
                   if (isToday(alert.timestamp) || isWithinLast24Hours(alert.timestamp)) {
                     alertMap.set(alert.id, alert)
                   }
                 }
 
-                // Add to history list if not already there by ID
-                if (!historyAlertsList.some(h => h.id === alert.id)) {
+                // Check if this alert is already in the history list by ID or content
+                const isHistoryDuplicate = historyAlertsList.some(h => 
+                  h.id === alert.id || 
+                  (h.deviceId === alert.deviceId && 
+                   h.timestamp === alert.timestamp && 
+                   h.description === alert.description)
+                )
+
+                // Add to history list if not already there
+                if (!isHistoryDuplicate) {
                   historyAlertsList.push({ ...alert, status: currentStatus })
                 }
               }
