@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "alerts": {
+      ".read": true,
+      ".write": false
+    },
+    "devices": {
+      ".read": true,
+      ".write": false
+    }
+  }
+}
+
