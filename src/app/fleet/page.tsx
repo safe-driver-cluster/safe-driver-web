@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -31,8 +31,9 @@ import type { Route as RouteType } from "@/lib/route-types"
 import {
   Bus,
   MapPin,
-
-
+  FileText,
+  Loader2,
+  Fuel,
   Search,
   Plus,
   Eye,
@@ -43,14 +44,10 @@ import {
   Route,
   Gauge,
   Battery,
-
-
-
-  FileText,
-  Loader2,
+  Shield,
 } from "lucide-react"
 import type { Vehicle } from "@/lib/fleet-types"
-import { LiveTrackingDashboard } from "@/components/live-tracking-dashboard"
+
 import { useToast } from "@/hooks/use-toast"
 import { FleetMap } from "@/components/fleet-map"
 import { useLanguage } from "@/components/language-provider"
@@ -85,8 +82,6 @@ export default function FleetManagement() {
     locationDepot: "",
   })
 
-
-
   // Fetch vehicles
   const fetchVehicles = async (silent = false) => {
     try {
@@ -95,7 +90,6 @@ export default function FleetManagement() {
       if (statusFilter !== "all") {
         params.append("status", statusFilter)
       }
-
       if (searchTerm) {
         params.append("search", searchTerm)
       }
@@ -132,8 +126,6 @@ export default function FleetManagement() {
     }
   }
 
-
-
   useEffect(() => {
     fetchVehicles()
     fetchRoutes()
@@ -164,17 +156,12 @@ export default function FleetManagement() {
     switch (status) {
       case "active":
         return "success"
-
       case "inactive":
         return "secondary"
       default:
         return "secondary"
     }
   }
-
-
-
-
 
   const filteredVehicles = vehicles.filter((vehicle) => {
     const matchesSearch =
@@ -274,14 +261,9 @@ export default function FleetManagement() {
     }
   }
 
-
-
   const updateVehicleStatus = async (vehicleId: string, newStatus: string) => {
     try {
-      // Add to updating set
       setUpdatingStatusIds(prev => new Set(prev).add(vehicleId))
-      
-      // Optimistic update
       setVehicles(prev => prev.map(v => v.id === vehicleId ? { ...v, status: newStatus as any } : v))
 
       const response = await fetch(`/api/fleet/${vehicleId}/status`, {
@@ -301,11 +283,9 @@ export default function FleetManagement() {
         description: `Vehicle status updated to ${newStatus}.`,
       })
 
-      // Silent refresh to ensure sync with server
       await fetchVehicles(true)
     } catch (error: any) {
       console.error("Error updating vehicle status:", error)
-      // Rollback optimistic update on error
       fetchVehicles(true)
       
       toast({
@@ -333,7 +313,6 @@ export default function FleetManagement() {
     // Client-side validation
     const errors: string[] = []
 
-    // Validate BUS Number Plate format (NB-XXXX)
     if (!editingVehicle.busNumberPlate?.trim()) {
       errors.push("BUS Number Plate is required")
     } else {
@@ -453,14 +432,12 @@ export default function FleetManagement() {
     }
   }
 
-
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900 mb-2">{t("fleet_management_system")}</h1>
-          <p className="text-neutral-600">{t("fleet_desc")}</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">{t("fleet_management_system")}</h1>
+          <p className="text-muted-foreground">{t("fleet_desc")}</p>
         </div>
         <Dialog open={showAddVehicle} onOpenChange={setShowAddVehicle}>
           <DialogTrigger asChild>
@@ -484,13 +461,11 @@ export default function FleetManagement() {
                   value={newVehicle.busNumberPlate}
                   onChange={(e) => {
                     let value = e.target.value.toUpperCase()
-                    // Auto-format: Add NB- prefix if user types numbers
                     if (value && !value.startsWith("NB-")) {
                       if (/^\d+$/.test(value.replace("NB-", ""))) {
                         value = "NB-" + value.replace("NB-", "")
                       }
                     }
-                    // Limit to format NB-XXXX
                     if (value.length > 7) value = value.substring(0, 7)
                     setNewVehicle({ ...newVehicle, busNumberPlate: value })
                   }}
@@ -498,7 +473,7 @@ export default function FleetManagement() {
                   required
                   maxLength={7}
                 />
-                <p className="text-xs text-gray-500 mt-1">Format: NB-XXXX (e.g., NB-4565)</p>
+                <p className="text-xs text-muted-foreground mt-1">Format: NB-XXXX (e.g., NB-4565)</p>
               </div>
               <div>
                 <Label htmlFor="deviceId">{t("device_id")}</Label>
@@ -508,7 +483,7 @@ export default function FleetManagement() {
                   onChange={(e) => setNewVehicle({ ...newVehicle, deviceId: e.target.value.toUpperCase() })}
                   placeholder="e.g., DEV-001"
                 />
-                <p className="text-xs text-gray-500 mt-1">GPS/Tracking device ID (optional)</p>
+                <p className="text-xs text-muted-foreground mt-1">GPS/Tracking device ID (optional)</p>
               </div>
               <div>
                 <Label htmlFor="model">{t("vehicle_model")}</Label>
@@ -529,15 +504,7 @@ export default function FleetManagement() {
                   placeholder="2024"
                 />
               </div>
-              <div>
-                <Label htmlFor="driver">{t("assigned_driver")}</Label>
-                <Input
-                  id="driver"
-                  value={newVehicle.driverName}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, driverName: e.target.value })}
-                  placeholder="Driver name"
-                />
-              </div>
+
               <div>
                 <Label htmlFor="route">{t("route_label")}</Label>
                 <Select
@@ -589,7 +556,7 @@ export default function FleetManagement() {
       </div>
 
       {/* Fleet Statistics */}
-      <div className="grid grid-cols-1 gap-6 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t("total_vehicles")}</CardTitle>
@@ -597,41 +564,48 @@ export default function FleetManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">{vehicles.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {vehicles.filter((v) => v.status === "active").length} {t("active")}
-            </p>
-            {loading && <p className="text-xs text-gray-400 mt-1">Loading...</p>}
           </CardContent>
         </Card>
-
-
-
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{t("active")}</CardTitle>
+            <Bus className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-500">
+              {vehicles.filter((v) => v.status === "active").length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{t("inactive")}</CardTitle>
+            <Bus className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-500">
+              {vehicles.filter((v) => v.status === "inactive").length}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <Tabs defaultValue="vehicles" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="vehicles">{t("vehicle_fleet")}</TabsTrigger>
-          <TabsTrigger value="tracking">{t("live_tracking")}</TabsTrigger>
-          <TabsTrigger value="analytics">{t("fleet_analytics")}</TabsTrigger>
-        </TabsList>
-
-        {/* Vehicle Fleet Tab */}
-        <TabsContent value="vehicles" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>{t("fleet_overview")}</CardTitle>
-                  <CardDescription>{t("fleet_overview_desc")}</CardDescription>
-                </div>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>{t("fleet_overview")}</CardTitle>
+                <CardDescription>{t("fleet_overview_desc")}</CardDescription>
               </div>
-            </CardHeader>
+            </div>
+          </CardHeader>
             <CardContent>
               {/* Filters */}
               <div className="flex gap-4 mb-6">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground/60 h-4 w-4" />
                     <Input
                       placeholder={t("search_fleet")}
                       value={searchTerm}
@@ -647,11 +621,9 @@ export default function FleetManagement() {
                   <SelectContent>
                     <SelectItem value="all">{t("all_status")}</SelectItem>
                     <SelectItem value="active">{t("active")}</SelectItem>
-
                     <SelectItem value="inactive">{t("inactive")}</SelectItem>
                   </SelectContent>
                 </Select>
-
               </div>
 
               {/* Vehicle Grid */}
@@ -698,7 +670,6 @@ export default function FleetManagement() {
                           </div>
                           <div className="flex gap-2">
                             <Badge variant={getStatusColor(vehicle.status)}>{vehicle.status.toUpperCase()}</Badge>
-
                           </div>
                         </div>
                       </CardHeader>
@@ -801,81 +772,18 @@ export default function FleetManagement() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Live Tracking Tab */}
-        <TabsContent value="tracking" className="mt-0">
-          <LiveTrackingDashboard vehicles={vehicles} />
-        </TabsContent>
-
-
-
-        {/* Fleet Analytics Tab */}
-        <TabsContent value="analytics" className="space-y-6">
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Vehicle Status Distribution</CardTitle>
-              <CardDescription>Current status of all vehicles in the fleet</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600 mb-2">
-                    {vehicles.filter((v) => v.status === "active").length}
-                  </div>
-                  <p className="text-sm text-gray-600">Active Vehicles</p>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                    <div
-                      className="h-2 bg-green-500 rounded-full"
-                      style={{
-                        width: `${(vehicles.filter((v) => v.status === "active").length / vehicles.length) * 100}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-gray-600 mb-2">
-                    {vehicles.filter((v) => v.status === "inactive").length}
-                  </div>
-                  <p className="text-sm text-gray-600">Inactive</p>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                    <div
-                      className="h-2 bg-gray-500 rounded-full"
-                      style={{
-                        width: `${vehicles.length > 0 ? (vehicles.filter((v) => v.status === "inactive").length / vehicles.length) * 100 : 0}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      </div>
 
       {/* Vehicle Details Modal */}
       {selectedVehicle && (
         <Dialog open={!!selectedVehicle} onOpenChange={() => setSelectedVehicle(null)}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>{selectedVehicle.busNumberPlate || selectedVehicle.busNumber || "N/A"} - Detailed Information</DialogTitle>
               <DialogDescription>
                 {selectedVehicle.model} ({selectedVehicle.year})
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-6">
-              {/* Vehicle Status */}
-              <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
-                <div className="text-center p-3 border rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">{Math.round(selectedVehicle.speed)}</div>
-                  <div className="text-sm text-gray-600">Speed (km/h)</div>
-                </div>
-              </div>
-
-
-            </div>
           </DialogContent>
         </Dialog>
       )}
@@ -901,13 +809,11 @@ export default function FleetManagement() {
                   value={editingVehicle.busNumberPlate || ""}
                   onChange={(e) => {
                     let value = e.target.value.toUpperCase()
-                    // Auto-format: Add NB- prefix if user types numbers
                     if (value && !value.startsWith("NB-")) {
                       if (/^\d+$/.test(value.replace("NB-", ""))) {
                         value = "NB-" + value.replace("NB-", "")
                       }
                     }
-                    // Limit to format NB-XXXX
                     if (value.length > 7) value = value.substring(0, 7)
                     setEditingVehicle({ ...editingVehicle, busNumberPlate: value })
                   }}
@@ -915,18 +821,8 @@ export default function FleetManagement() {
                   required
                   maxLength={7}
                 />
-                <p className="text-xs text-gray-500 mt-1">Format: NB-XXXX (e.g., NB-4565)</p>
+                <p className="text-xs text-muted-foreground mt-1">Format: NB-XXXX (e.g., NB-4565)</p>
               </div>
-              {/* <div>
-                <Label htmlFor="edit-documentId">Document ID (Number Plate)</Label>
-                <Input
-                  id="edit-documentId"
-                  value={editingVehicle.documentId || ""}
-                  onChange={(e) => setEditingVehicle({ ...editingVehicle, documentId: e.target.value.toUpperCase() })}
-                  placeholder="e.g., ABC-1234"
-                />
-                <p className="text-xs text-gray-500 mt-1">Vehicle registration number / Number plate</p>
-              </div> */}
               <div>
                 <Label htmlFor="edit-deviceId">Device ID</Label>
                 <Input
@@ -935,17 +831,8 @@ export default function FleetManagement() {
                   onChange={(e) => setEditingVehicle({ ...editingVehicle, deviceId: e.target.value.toUpperCase() })}
                   placeholder="e.g., DEV-001"
                 />
-                <p className="text-xs text-gray-500 mt-1">GPS/Tracking device ID (optional)</p>
+                <p className="text-xs text-muted-foreground mt-1">GPS/Tracking device ID (optional)</p>
               </div>
-              {/* <div>
-                <Label htmlFor="edit-busNumber">Bus Number</Label>
-                <Input
-                  id="edit-busNumber"
-                  value={editingVehicle.busNumber || ""}
-                  onChange={(e) => setEditingVehicle({ ...editingVehicle, busNumber: e.target.value })}
-                  placeholder="e.g., NB-1234"
-                />
-              </div> */}
               <div>
                 <Label htmlFor="edit-model">Vehicle Model *</Label>
                 <Input
@@ -967,15 +854,7 @@ export default function FleetManagement() {
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="edit-driverName">Assigned Driver</Label>
-                <Input
-                  id="edit-driverName"
-                  value={editingVehicle.driverName || ""}
-                  onChange={(e) => setEditingVehicle({ ...editingVehicle, driverName: e.target.value })}
-                  placeholder="Driver name"
-                />
-              </div>
+
               <div>
                 <Label htmlFor="edit-route">Route</Label>
                 <Select
@@ -1022,7 +901,6 @@ export default function FleetManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
-
                     <SelectItem value="inactive">Inactive</SelectItem>
                   </SelectContent>
                 </Select>

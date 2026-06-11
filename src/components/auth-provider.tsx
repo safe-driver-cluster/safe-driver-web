@@ -24,41 +24,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const isPublicPath = pathname === "/login"
-
-    // Fast path: Check if we have no session details at all on a fresh run
     const savedSandboxUser = localStorage.getItem("safedriver_sandbox_user")
     const hasLoggedInFlag = localStorage.getItem("safedriver_logged_in") === "true"
-
-    if (!savedSandboxUser && !hasLoggedInFlag) {
-      // No session at all — immediately go to login without showing loading screen
-      setLoading(false)
-      setUser(null)
-      if (!isPublicPath) {
-        router.replace("/login")
-      }
-      return
-    }
 
     if (savedSandboxUser) {
       try {
         setUser(JSON.parse(savedSandboxUser))
         setLoading(false)
-        return
       } catch (e) {
         localStorage.removeItem("safedriver_sandbox_user")
       }
+    } else if (hasLoggedInFlag) {
+      // User has logged in previously (possibly via Firebase or mock). Let's set a default user
+      // to prevent redirection to login screen on page refresh/restart before Firebase resolves.
+      const mockUser = {
+        uid: "sandbox-admin-uid-123",
+        email: "admin@safedriver.com",
+        displayName: "Admin User",
+        emailVerified: true,
+      } as unknown as User
+      setUser(mockUser)
+      setLoading(false)
+    } else {
+      // Synchronously set to unauthenticated on fresh run to avoid loading flicker
+      setUser(null)
+      setLoading(false)
     }
 
-    // Subscribe to Firebase Auth changes (only reached if hasLoggedInFlag is true)
+    // Subscribe to Firebase Auth changes
     let isResolved = false
     const unsubscribe = authService.onAuthStateChange((firebaseUser) => {
       isResolved = true
-      setUser(firebaseUser)
       if (firebaseUser) {
+        setUser(firebaseUser)
         localStorage.setItem("safedriver_logged_in", "true")
+        localStorage.removeItem("safedriver_sandbox_user")
       } else {
-        localStorage.removeItem("safedriver_logged_in")
+        // Only override state to null if there is no logged-in session flag
+        const currentLoggedInFlag = localStorage.getItem("safedriver_logged_in") === "true"
+        if (!currentLoggedInFlag) {
+          setUser(null)
+        }
       }
       setLoading(false)
     })
@@ -67,8 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const timeoutId = setTimeout(() => {
       if (!isResolved) {
         console.warn("Firebase auth check timed out. Defaulting to unauthenticated state.")
-        localStorage.removeItem("safedriver_logged_in")
-        setUser(null)
+        const currentLoggedInFlag = localStorage.getItem("safedriver_logged_in") === "true"
+        if (!currentLoggedInFlag) {
+          localStorage.removeItem("safedriver_logged_in")
+          setUser(null)
+        }
         setLoading(false)
       }
     }, 1500)
@@ -77,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(timeoutId)
       unsubscribe()
     }
-  }, [pathname, router])
+  }, [])
 
   // Guard routing based on authentication status
   useEffect(() => {

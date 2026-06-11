@@ -95,42 +95,42 @@ export default function CompliancePage() {
   const getStatusColor = (status?: string) => {
     switch (status) {
       case "resolved":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 dark:bg-green-950/30 text-green-800 dark:text-green-400"
       case "acknowledged":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 dark:bg-blue-950/30 text-blue-800 dark:text-blue-400"
       case "submitted":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-yellow-100 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-400"
       case "closed":
-        return "bg-gray-100 text-gray-800"
+        return "bg-muted text-muted-foreground"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-muted text-muted-foreground"
     }
   }
 
   const getTypeColor = (type?: string) => {
     switch (type) {
       case "positive":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 dark:bg-green-950/30 text-green-800 dark:text-green-400"
       case "negative":
       case "complaint":
-        return "bg-red-100 text-red-800"
+        return "bg-red-100 dark:bg-red-950/30 text-red-800 dark:text-red-400"
       case "suggestion":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 dark:bg-blue-950/30 text-blue-800 dark:text-blue-400"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-muted text-muted-foreground"
     }
   }
 
   const getPriorityColor = (priority?: string) => {
     switch (priority) {
       case "high":
-        return "bg-red-100 text-red-800"
+        return "bg-red-100 dark:bg-red-950/30 text-red-800 dark:text-red-400"
       case "medium":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-yellow-100 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-400"
       case "low":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 dark:bg-green-950/30 text-green-800 dark:text-green-400"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-muted text-muted-foreground"
     }
   }
 
@@ -154,8 +154,8 @@ export default function CompliancePage() {
   return (
     <div className="container mx-auto p-4 md:p-6 pt-20 space-y-4">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{t("feedback_management")}</h1>
-        <p className="text-sm text-gray-600">{t("feedback_desc")}</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">{t("feedback_management")}</h1>
+        <p className="text-sm text-muted-foreground">{t("feedback_desc")}</p>
       </div>
 
       {/* Statistics Cards */}
@@ -191,7 +191,7 @@ export default function CompliancePage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
               <Input
                 placeholder={t("search_feedback")}
                 className="pl-10"
@@ -246,18 +246,18 @@ export default function CompliancePage() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-sm text-gray-500">{t("loading_feedback")}</div>
+              <div className="text-sm text-muted-foreground">{t("loading_feedback")}</div>
             </div>
           ) : filteredFeedback.length === 0 ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-sm text-gray-500">{t("no_feedback_found")}</div>
+              <div className="text-sm text-muted-foreground">{t("no_feedback_found")}</div>
             </div>
           ) : (
             <div className="space-y-3">
               {filteredFeedback.map((item) => (
                 <div
                   key={item.id || item.documentId}
-                  className="border rounded-lg p-3 hover:bg-gray-50 transition-colors"
+                  className="border rounded-lg p-3 hover:bg-muted transition-colors"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
@@ -269,8 +269,8 @@ export default function CompliancePage() {
                           <Badge className={getPriorityColor(item.priority)}>{t(item.priority as any) || item.priority}</Badge>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600 mb-3">{item.description || item.comment || t("no_description")}</p>
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                      <p className="text-sm text-muted-foreground mb-3">{item.description || item.comment || t("no_description")}</p>
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                         {item.userName && (
                           <div className="flex items-center gap-1">
                             <User className="h-3 w-3" />
@@ -303,11 +303,11 @@ export default function CompliancePage() {
                         )}
                       </div>
                       {item.response && (
-                        <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <p className="text-xs font-medium text-blue-900 mb-1">{t("response")}:</p>
-                          <p className="text-sm text-blue-800">{item.response}</p>
+                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900/30">
+                          <p className="text-xs font-medium text-blue-900 dark:text-blue-300 mb-1">{t("response")}:</p>
+                          <p className="text-sm text-blue-800 dark:text-blue-200">{item.response}</p>
                           {item.respondedBy && (
-                            <p className="text-xs text-blue-600 mt-1">{t("by")} {item.respondedBy}</p>
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">{t("by")} {item.respondedBy}</p>
                           )}
                         </div>
                       )}

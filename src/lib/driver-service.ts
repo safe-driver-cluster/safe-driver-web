@@ -109,7 +109,6 @@ export const driverService = {
         phone: input.phone,
         email: input.email,
         busNumber: input.busNumber || "",
-        route: input.route || "",
         status: "off_duty",
         alertCount: 0,
         joinDate: now.split("T")[0],

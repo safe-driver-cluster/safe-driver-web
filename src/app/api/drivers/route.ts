@@ -16,7 +16,6 @@ const createDriverSchema = z.object({
   phone: z.string().min(1, "Phone number is required"),
   email: z.string().email("Invalid email address"),
   busNumber: z.string().optional(),
-  route: z.string().optional(),
   address: z.string().optional(),
   experience: z.string().optional(),
 })

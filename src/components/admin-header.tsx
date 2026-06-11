@@ -466,14 +466,14 @@ export function AdminHeader() {
                     }}
                     className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted transition-colors cursor-pointer"
                   >
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
                       {getResultIcon(result.type)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{result.title}</p>
-                      <p className="text-xs text-gray-500 truncate">{result.subtitle}</p>
+                      <p className="text-sm font-medium text-foreground truncate">{result.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{result.subtitle}</p>
                     </div>
-                    <span className="text-xs text-gray-400 capitalize">{result.type}</span>
+                    <span className="text-xs text-muted-foreground capitalize">{result.type}</span>
                   </Link>
                 ))}
               </div>
@@ -481,8 +481,8 @@ export function AdminHeader() {
           )}
 
           {showResults && searchQuery.trim() && searchResults.length === 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-4">
-              <p className="text-sm text-gray-500 text-center">No results found</p>
+            <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border text-popover-foreground rounded-lg shadow-lg z-50 p-4">
+              <p className="text-sm text-muted-foreground text-center">No results found</p>
             </div>
           )}
         </div>
@@ -531,8 +531,8 @@ export function AdminHeader() {
                       <div
                         key={notification.id}
                         className={cn(
-                          "p-4 hover:bg-gray-50 transition-colors cursor-pointer relative",
-                          !notification.read && "bg-blue-50/50"
+                          "p-4 hover:bg-muted transition-colors cursor-pointer relative",
+                          !notification.read && "bg-blue-50/50 dark:bg-blue-950/20"
                         )}
                         onClick={() => {
                           markAsRead(notification.id)
@@ -553,11 +553,11 @@ export function AdminHeader() {
                                 <div className="h-2 w-2 bg-blue-600 rounded-full flex-shrink-0 mt-1.5" />
                               )}
                             </div>
-                            <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                               {notification.message}
                             </p>
                             <div className="flex items-center gap-2 mt-2">
-                              <span className="text-xs text-gray-400">
+                              <span className="text-xs text-muted-foreground">
                                 {formatNotificationTime(notification.timestamp)}
                               </span>
                               {notification.severity && (
@@ -619,7 +619,7 @@ export function AdminHeader() {
             <DropdownMenuContent align="end" className="w-56">
               <div className="px-2 py-1.5 border-b">
                 <p className="text-sm font-medium truncate">{user?.displayName || "Admin User"}</p>
-                <p className="text-xs text-gray-500 truncate">{user?.email || "admin@safedriver.com"}</p>
+                <p className="text-xs text-muted-foreground truncate">{user?.email || "admin@safedriver.com"}</p>
               </div>
               <DropdownMenuItem asChild>
                 <Link href="/settings" className="cursor-pointer flex items-center">
@@ -657,7 +657,7 @@ export function AdminHeader() {
                     setShowResults(true)
                   }
                 }}
-                className="pl-10 pr-4 bg-gray-50 w-full"
+                className="pl-10 pr-4 bg-muted w-full"
                 autoFocus
                 onBlur={() => setTimeout(() => setIsSearchOpen(false), 200)}
               />
@@ -666,7 +666,7 @@ export function AdminHeader() {
 
           {/* Mobile Search Results */}
           {showResults && searchResults.length > 0 && (
-            <div className="mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+            <div className="mt-2 bg-popover border border-border text-popover-foreground rounded-lg shadow-lg max-h-64 overflow-y-auto">
               <div className="p-2">
                 {searchResults.map((result, index) => (
                   <Link
@@ -677,14 +677,14 @@ export function AdminHeader() {
                       setShowResults(false)
                       setIsSearchOpen(false)
                     }}
-                    className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                    className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted transition-colors"
                   >
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
                       {getResultIcon(result.type)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{result.title}</p>
-                      <p className="text-xs text-gray-500 truncate">{result.subtitle}</p>
+                      <p className="text-sm font-medium text-foreground truncate">{result.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{result.subtitle}</p>
                     </div>
                   </Link>
                 ))}

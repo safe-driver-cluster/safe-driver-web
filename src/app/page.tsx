@@ -7,11 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Car, Users, AlertTriangle, CheckCircle, Activity, Shield, Bell, TrendingUp, MapPin, Clock, MessageSquare, Star, FileText } from "lucide-react"
 import Link from "next/link"
-import { useLiveAlerts, isToday, parseTimestamp, isWithinLast24Hours, isWithinLast30Days } from "@/hooks/use-live-alerts"
+import { useLiveAlerts, isToday, parseTimestamp, isWithinLast24Hours, isWithinLast30Days, isWithinPrevious24Hours } from "@/hooks/use-live-alerts"
 import { useLanguage } from "@/components/language-provider"
-import { SafetyScoreCard } from "@/components/safety-score-card"
-import { RiskLevelCard } from "@/components/risk-level-card"
-import { calculateSafetyScore, calculateSafetyTrend } from "@/lib/safety-score"
 
 // Helper function to format relative time
 const formatRelativeTime = (timestamp: string | number, t: (key: string) => string): string => {
@@ -166,11 +163,6 @@ export default function HomePage() {
     const todayActiveAlerts = todayAlertsList.filter((a) => a.status === "active").length
     const todayResolvedAlerts = todayAlertsList.filter((a) => a.status === "resolved").length
 
-    // Safety score is calculated based on ALL alerts from the last 30 days
-    const alertsLast30Days = uniqueAlerts.filter((alert) => isWithinLast30Days(alert.timestamp))
-    const safetyScore = calculateSafetyScore(alertsLast30Days)
-    const safetyTrend = calculateSafetyTrend(safetyScore)
-
     // Get fleet statistics from fleet management
     const totalVehicles = fleetVehicles.length || 0
     const activeVehicles = fleetVehicles.filter((v) => v.status === "active").length || 0
@@ -184,8 +176,6 @@ export default function HomePage() {
       todayActiveAlerts,
       todayResolvedAlerts,
       complianceRate: 96,
-      safetyScore,
-      safetyTrend,
     }
   }, [liveAlerts, historyAlerts, driverStats, fleetVehicles])
 
@@ -280,30 +270,16 @@ export default function HomePage() {
     { title: t("reports"), href: "/reports", icon: FileText, color: "bg-orange-500" },
   ]
 
-  const scoreTrendNum = parseFloat(fleetStats.safetyTrend) || 0
-  const riskTrend = scoreTrendNum === 0 ? "0.0%" : `${scoreTrendNum > 0 ? "-" : "+"}${Math.abs(scoreTrendNum).toFixed(1)}%`
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold text-gray-900">{t("dashboard_title")}</h1>
-        <p className="text-gray-600">{t("dashboard_desc")}</p>
+        <h1 className="text-3xl font-bold text-foreground">{t("dashboard_title")}</h1>
+        <p className="text-muted-foreground">{t("dashboard_desc")}</p>
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 items-stretch">
-        <SafetyScoreCard 
-          score={fleetStats.safetyScore} 
-          trend={fleetStats.safetyTrend}
-          className="h-full"
-        />
-
-        <RiskLevelCard 
-          score={fleetStats.safetyScore}
-          trend={riskTrend}
-          className="h-full"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
 
         <Card className="flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

@@ -16,7 +16,6 @@ const updateDriverSchema = z.object({
   phone: z.string().min(1).optional(),
   email: z.string().email().optional(),
   busNumber: z.string().optional(),
-  route: z.string().optional(),
   status: z.enum(["on_duty", "off_duty", "suspended"]).optional(),
   address: z.string().optional(),
   experience: z.string().optional(),

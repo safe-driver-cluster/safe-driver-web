@@ -51,6 +51,7 @@ export const generatePDFReport = async (reportData: ReportData) => {
   try {
     const { jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
+    const { generateIncidentBarChart } = await import("./chart-generator");
 
     const doc = new jsPDF({
       orientation: "portrait",
@@ -124,19 +125,16 @@ export const generatePDFReport = async (reportData: ReportData) => {
       const driverAlerts = data?.drivers?.reduce((sum: number, d: any) => sum + (Number(d.alerts) || 0), 0) ?? 0;
       summaryCards = [
         { label: "Total Drivers", value: data?.drivers?.length ?? 0, color: secondaryColor },
-        { label: "Total Driver Alerts", value: driverAlerts, color: accentColor },
-        { label: "Avg Safety Score", value: `${Math.round(data?.safetyScore ?? 95)}%`, color: [16, 185, 129] as [number, number, number] }
+        { label: "Total Driver Alerts", value: driverAlerts, color: accentColor }
       ];
     } else if (type === "fleet-analytics") {
-      const activeBuses = data?.routes?.reduce((sum: number, r: any) => sum + (Number(r.buses) || 0), 0) ?? 0;
-      const totalRoutes = data?.routes?.length ?? 0;
-      const avgEfficiency = data?.routes?.length > 0
-        ? `${(data.routes.reduce((sum: number, r: any) => sum + parseFloat(r.efficiency || 0), 0) / data.routes.length).toFixed(0)}%`
-        : "100%";
+      const totalBuses = data?.fleetSummary?.total ?? (data?.buses?.length ?? 0);
+      const activeBuses = data?.fleetSummary?.active ?? 0;
+      const totalAlerts = data?.fleetSummary?.totalAlerts ?? data?.buses?.reduce((sum: number, b: any) => sum + (Number(b.alerts) || 0), 0) ?? 0;
       summaryCards = [
-        { label: "Active Routes Monitored", value: totalRoutes, color: secondaryColor },
-        { label: "Active Buses Dispatched", value: activeBuses, color: [16, 185, 129] as [number, number, number] },
-        { label: "Schedule Efficiency", value: avgEfficiency, color: [79, 70, 229] as [number, number, number] }
+        { label: "Total Buses in Fleet", value: totalBuses, color: secondaryColor },
+        { label: "Active Buses", value: activeBuses, color: [16, 185, 129] as [number, number, number] },
+        { label: "Total Bus Alerts", value: totalAlerts, color: accentColor }
       ];
     } else if (type === "compliance") {
       summaryCards = [
@@ -203,36 +201,65 @@ export const generatePDFReport = async (reportData: ReportData) => {
       doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
       doc.text(`Target Entity:  ${data?.entityName || "Entire Fleet"}`, 18, currentY + 9);
 
-      const safetyScore = data?.safetyScore ?? 0;
-      doc.setFont("helvetica", "bold");
-      doc.text(`AI Safety Score:  ${safetyScore.toFixed(1)}%`, 130, currentY + 9);
-
       currentY += 22;
 
-      // Table for Infraction Breakdown
+      // Generate and embed Incident Bar Chart
+      try {
+        const counts = {
+          drowsiness: data?.counts?.drowsiness || 0,
+          distraction: data?.counts?.distraction || 0,
+          phone: data?.counts?.phone || 0,
+          smoking: data?.counts?.smoking || 0,
+          drinking: data?.counts?.drinking || 0,
+        };
+        const chartDataUrl = await generateIncidentBarChart(counts);
+        doc.addImage(chartDataUrl, "PNG", 14, currentY, 182, 91);
+        currentY += 101;
+      } catch (chartErr) {
+        console.error("Failed to generate or embed chart:", chartErr);
+      }
+
+      // Table for Alert Log
+      const alertDetails: any[] = data?.alertDetails || [];
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
-      doc.text("Infraction Breakdown", 14, currentY);
+      doc.text(`Alert Log — ${alertDetails.length} Records`, 14, currentY);
       currentY += 4;
 
-      const infractionRows = [
-        ["Drowsiness (Critical)", String(data?.counts?.drowsiness ?? 0)],
-        ["Yawning (Warning)", String(data?.counts?.yawn ?? 0)],
-        ["Phone Usage (High Risk)", String(data?.counts?.phone ?? 0)],
-        ["Distracted Driving", String(data?.counts?.distraction ?? 0)]
-      ];
+      const detailRows = alertDetails.map((a: any, i: number) => [
+        String(i + 1),
+        a.driverName,
+        a.busNumber,
+        a.type,
+        a.timestamp,
+        a.description || "-"
+      ]);
 
       autoTable(doc, {
         startY: currentY,
-        head: [["Violation Type", "Count"]],
-        body: infractionRows,
+        head: [["#", "Driver Name", "Bus No.", "Alert Type", "Date & Time", "Description"]],
+        body: detailRows.length > 0 ? detailRows : [["No records found", "", "", "", "", ""]],
         theme: "striped",
-        headStyles: { fillColor: primaryColor, fontStyle: "bold" },
+        headStyles: { fillColor: primaryColor, fontStyle: "bold", fontSize: 8 },
+        bodyStyles: { fontSize: 7.5 },
+        columnStyles: {
+          0: { cellWidth: 10 },
+          1: { cellWidth: 35 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 35 },
+          4: { cellWidth: 40 },
+          5: { cellWidth: 37 },
+        },
         margin: { left: 14, right: 14 }
       });
 
-      // Feedback Summary
       let finalY = (doc as any).lastAutoTable.finalY + 12;
+
+      // Feedback Summary
+      if (finalY > 250) {
+        doc.addPage();
+        finalY = 20;
+      }
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
@@ -250,19 +277,23 @@ export const generatePDFReport = async (reportData: ReportData) => {
       doc.setTextColor(100, 116, 139);
       doc.text(`Average Rating based on ${data?.feedbacks?.total ?? 0} passenger comments`, 50, finalY + 10);
 
+      finalY += 26;
+
       // Comments section (limit to fit page cleanly or add new page if needed)
       if (data?.feedbacks?.recent?.length > 0) {
-        doc.addPage();
-        let commentY = 20;
-        commentY = drawSectionHeader(commentY, "Passenger Feedback Details");
+        if (finalY > 230) {
+          doc.addPage();
+          finalY = 20;
+        }
+        finalY = drawSectionHeader(finalY, "Passenger Feedback Details");
         
         data.feedbacks.recent.forEach((f: any, idx: number) => {
-          if (commentY > 260) {
+          if (finalY > 260) {
             doc.addPage();
-            commentY = 20;
+            finalY = 20;
           }
-           doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
-          doc.rect(14, commentY, 182, 22, "F");
+          doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+          doc.rect(14, finalY, 182, 22, "F");
           doc.setFont("helvetica", "bold");
           doc.setFontSize(9);
           doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
@@ -270,18 +301,87 @@ export const generatePDFReport = async (reportData: ReportData) => {
           const cleanTitle = translateTextForPDF(f.title || "Passenger Comment");
           const cleanComment = translateTextForPDF(f.comment || "No comment");
 
-          doc.text(`${cleanTitle} - ${f.rating} Stars`, 18, commentY + 6);
+          doc.text(`${cleanTitle} - ${f.rating} Stars`, 18, finalY + 6);
           doc.setFont("helvetica", "normal");
           doc.setFontSize(8);
           doc.setTextColor(100, 116, 139);
-          doc.text(`By ${f.userName || "Anonymous"} | Bus: ${f.busNumber || "N/A"} | Date: ${f.date}`, 18, commentY + 11);
+          doc.text(`By ${f.userName || "Anonymous"} | Bus: ${f.busNumber || "N/A"} | Date: ${f.date}`, 18, finalY + 11);
           
           doc.setFont("helvetica", "italic");
           doc.setFontSize(9);
           doc.setTextColor(51, 65, 85);
-          doc.text(`"${cleanComment}"`, 18, commentY + 17);
-          commentY += 26;
+          doc.text(`"${cleanComment}"`, 18, finalY + 17);
+          finalY += 26;
         });
+      }
+
+      // Evidence Photos section
+      const alertsWithEvidence = alertDetails.filter((a: any) => a.evidence && typeof a.evidence === "string" && a.evidence.startsWith("http"));
+
+      if (alertsWithEvidence.length > 0) {
+        const evidencePromises = alertsWithEvidence.map(async (alert) => {
+          try {
+            const imgDataUrl: string = await new Promise((resolve, reject) => {
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              img.onload = () => {
+                const canvas = document.createElement("canvas");
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext("2d");
+                if (ctx) {
+                  ctx.drawImage(img, 0, 0);
+                  resolve(canvas.toDataURL("image/jpeg", 0.8));
+                } else {
+                  reject(new Error("canvas context null"));
+                }
+              };
+              img.onerror = reject;
+              img.src = alert.evidence;
+            });
+            return { ...alert, imgDataUrl };
+          } catch (err) {
+            console.warn(`Skipping alert evidence for ${alert.id} because the image could not be loaded:`, err);
+            return null;
+          }
+        });
+
+        const resolvedAlerts = await Promise.all(evidencePromises);
+        const alertsWithValidEvidence = resolvedAlerts.filter((a): a is any => a !== null);
+
+        if (alertsWithValidEvidence.length > 0) {
+          doc.addPage();
+          let photoY = 20;
+          photoY = drawSectionHeader(photoY, "Evidence Photos");
+
+          for (let i = 0; i < alertsWithValidEvidence.length; i++) {
+            const alert = alertsWithValidEvidence[i];
+            if (photoY > 240) {
+              doc.addPage();
+              photoY = 20;
+            }
+
+            doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+            doc.rect(14, photoY, 182, 10, "F");
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+            doc.text(`${i + 1}. ${alert.type} — ${alert.driverName} | Bus: ${alert.busNumber} | ${alert.timestamp}`, 17, photoY + 6.5);
+            photoY += 12;
+
+            const imgDataUrl = alert.imgDataUrl;
+            const maxW = 100;
+            const maxH = 60;
+            const tmpImg = new Image();
+            tmpImg.src = imgDataUrl;
+            const ratio = Math.min(maxW / (tmpImg.naturalWidth || 320), maxH / (tmpImg.naturalHeight || 240));
+            const imgW = Math.min((tmpImg.naturalWidth || 320) * ratio, maxW);
+            const imgH = Math.min((tmpImg.naturalHeight || 240) * ratio, maxH);
+
+            doc.addImage(imgDataUrl, "JPEG", 14, photoY, imgW, imgH);
+            photoY += imgH + 10;
+          }
+        }
       }
     } else if (type === "driver-performance") {
       // Drivers Performance
@@ -305,22 +405,21 @@ export const generatePDFReport = async (reportData: ReportData) => {
         margin: { left: 14, right: 14 }
       });
     } else if (type === "fleet-analytics") {
-      // Fleet Analytics
-      currentY = drawSectionHeader(currentY, "Fleet Operations & Safety");
+      // Fleet Analytics — Bus Performance Table (mirrors Driver Performance)
+      currentY = drawSectionHeader(currentY, "Bus Fleet Performance");
 
-      const tableBody = (data?.routes || []).map((r: any) => [
-        r.name,
-        String(r.buses),
-        String(r.drivers),
-        r.distance,
-        String(r.riskAreas),
-        `${r.efficiency}%`
+      const tableBody = (data?.buses || []).map((b: any) => [
+        b.busNumberPlate,
+        b.model,
+        b.route,
+        String(b.alerts),
+        b.status === "active" ? "Active" : "Inactive"
       ]);
 
       autoTable(doc, {
         startY: currentY,
-        head: [["Route Name", "Active Buses", "Active Drivers", "Distance", "Incidents", "On-Time %"]],
-        body: tableBody.length > 0 ? tableBody : [["No fleet telemetry data available", "", "", "", "", ""]],
+        head: [["Bus No.", "Model", "Route", "Alerts", "Status"]],
+        body: tableBody.length > 0 ? tableBody : [["No fleet data available", "", "", "", ""]],
         theme: "striped",
         headStyles: { fillColor: primaryColor, fontStyle: "bold" },
         margin: { left: 14, right: 14 }
@@ -346,10 +445,10 @@ export const generatePDFReport = async (reportData: ReportData) => {
         margin: { left: 14, right: 14 }
       });
     } else {
-      // Fallback or Safety Summary (alerts list)
+      // Safety Summary: grouped summary table first
       currentY = drawSectionHeader(currentY, "Safety Alerts Summary");
 
-      const tableBody = (data?.alerts || []).map((a: any) => [
+      const summaryTableBody = (data?.alerts || []).map((a: any) => [
         a.type,
         String(a.count),
         String(a.high),
@@ -361,11 +460,140 @@ export const generatePDFReport = async (reportData: ReportData) => {
       autoTable(doc, {
         startY: currentY,
         head: [["Alert Type", "Total Alerts", "High Risk", "Med Risk", "Low Risk", "Avg Response"]],
-        body: tableBody.length > 0 ? tableBody : [["No alert distribution data available", "", "", "", "", ""]],
+        body: summaryTableBody.length > 0 ? summaryTableBody : [["No alert distribution data available", "", "", "", "", ""]],
         theme: "striped",
         headStyles: { fillColor: primaryColor, fontStyle: "bold" },
         margin: { left: 14, right: 14 }
       });
+
+      let nextY = (doc as any).lastAutoTable.finalY + 12;
+
+      // Generate and embed Incident Bar Chart
+      try {
+        if (nextY > 170) {
+          doc.addPage();
+          nextY = 20;
+        }
+        const counts = {
+          drowsiness: data?.counts?.drowsiness || 0,
+          distraction: data?.counts?.distraction || 0,
+          phone: data?.counts?.phone || 0,
+          smoking: data?.counts?.smoking || 0,
+          drinking: data?.counts?.drinking || 0,
+        };
+        const chartDataUrl = await generateIncidentBarChart(counts);
+        doc.addImage(chartDataUrl, "PNG", 14, nextY, 182, 91);
+      } catch (chartErr) {
+        console.error("Failed to generate or embed chart in summary:", chartErr);
+      }
+
+      // Detailed Alert Log (new page)
+      const alertDetails: any[] = data?.alertDetails || [];
+      if (alertDetails.length > 0) {
+        doc.addPage();
+        let detailY = 20;
+        detailY = drawSectionHeader(detailY, `Alert Log — ${alertDetails.length} Records`);
+
+        // Table of all alerts (no images first)
+        const detailRows = alertDetails.map((a: any, i: number) => [
+          String(i + 1),
+          a.driverName,
+          a.busNumber,
+          a.type,
+          a.timestamp,
+          a.description || "-"
+        ]);
+
+        autoTable(doc, {
+          startY: detailY,
+          head: [["#", "Driver Name", "Bus No.", "Alert Type", "Date & Time", "Description"]],
+          body: detailRows.length > 0 ? detailRows : [["No records found", "", "", "", "", ""]],
+          theme: "striped",
+          headStyles: { fillColor: primaryColor, fontStyle: "bold", fontSize: 8 },
+          bodyStyles: { fontSize: 7.5 },
+          columnStyles: {
+            0: { cellWidth: 10 },
+            1: { cellWidth: 35 },
+            2: { cellWidth: 25 },
+            3: { cellWidth: 35 },
+            4: { cellWidth: 40 },
+            5: { cellWidth: 37 },
+          },
+          margin: { left: 14, right: 14 }
+        });
+
+        // Evidence Photos section — embed images
+        const alertsWithEvidence = alertDetails.filter((a: any) => a.evidence && typeof a.evidence === "string" && a.evidence.startsWith("http"));
+
+        if (alertsWithEvidence.length > 0) {
+          // Pre-filter to only include those that load successfully
+          const evidencePromises = alertsWithEvidence.map(async (alert) => {
+            try {
+              const imgDataUrl: string = await new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.onload = () => {
+                  const canvas = document.createElement("canvas");
+                  canvas.width = img.naturalWidth;
+                  canvas.height = img.naturalHeight;
+                  const ctx = canvas.getContext("2d");
+                  if (ctx) {
+                    ctx.drawImage(img, 0, 0);
+                    resolve(canvas.toDataURL("image/jpeg", 0.8));
+                  } else {
+                    reject(new Error("canvas context null"));
+                  }
+                };
+                img.onerror = reject;
+                img.src = alert.evidence;
+              });
+              return { ...alert, imgDataUrl };
+            } catch (err) {
+              console.warn(`Skipping alert evidence for ${alert.id} because the image could not be loaded:`, err);
+              return null;
+            }
+          });
+
+          const resolvedAlerts = await Promise.all(evidencePromises);
+          const alertsWithValidEvidence = resolvedAlerts.filter((a): a is any => a !== null);
+
+          if (alertsWithValidEvidence.length > 0) {
+            doc.addPage();
+            let photoY = 20;
+            photoY = drawSectionHeader(photoY, "Evidence Photos");
+
+            for (let i = 0; i < alertsWithValidEvidence.length; i++) {
+              const alert = alertsWithValidEvidence[i];
+              if (photoY > 240) {
+                doc.addPage();
+                photoY = 20;
+              }
+
+              // Alert label
+              doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+              doc.rect(14, photoY, 182, 10, "F");
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(9);
+              doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+              doc.text(`${i + 1}. ${alert.type} — ${alert.driverName} | Bus: ${alert.busNumber} | ${alert.timestamp}`, 17, photoY + 6.5);
+              photoY += 12;
+
+              const imgDataUrl = alert.imgDataUrl;
+              // Scale image to fit width=100mm, max height=60mm
+              const maxW = 100;
+              const maxH = 60;
+              const tmpImg = new Image();
+              tmpImg.src = imgDataUrl;
+              const ratio = Math.min(maxW / (tmpImg.naturalWidth || 320), maxH / (tmpImg.naturalHeight || 240));
+              const imgW = Math.min((tmpImg.naturalWidth || 320) * ratio, maxW);
+              const imgH = Math.min((tmpImg.naturalHeight || 240) * ratio, maxH);
+
+              doc.addImage(imgDataUrl, "JPEG", 14, photoY, imgW, imgH);
+              photoY += imgH + 10;
+            }
+          }
+        }
+      }
     }
 
     // Save/Download the generated PDF

@@ -339,6 +339,32 @@ export default function LoginPage() {
             </Button>
           </form>
 
+          <div className="text-center text-sm text-slate-400 pt-2 border-t border-slate-900">
+            {mode === "login" ? (
+              <>
+                Don't have an admin account?{" "}
+                <button
+                  type="button"
+                  onClick={() => toggleMode("signup")}
+                  className="text-blue-400 hover:text-blue-300 font-semibold hover:underline transition-colors focus:outline-none"
+                >
+                  Create one now
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an admin account?{" "}
+                <button
+                  type="button"
+                  onClick={() => toggleMode("login")}
+                  className="text-blue-400 hover:text-blue-300 font-semibold hover:underline transition-colors focus:outline-none"
+                >
+                  Sign In
+                </button>
+              </>
+            )}
+          </div>
+
 
 
         </div>

@@ -9,12 +9,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary-600 text-white hover:bg-primary-700 shadow-soft hover:shadow-medium",
-        destructive: "bg-alert-600 text-white hover:bg-alert-700 shadow-soft hover:shadow-medium",
-        outline: "border-2 border-primary-600 text-primary-600 hover:bg-primary-600 hover:text-white",
-        secondary: "bg-neutral-100 text-neutral-800 hover:bg-neutral-200 shadow-soft hover:shadow-medium",
-        ghost: "hover:bg-neutral-100 hover:text-neutral-900",
-        link: "text-primary-600 underline-offset-4 hover:underline",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-soft hover:shadow-medium",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-soft hover:shadow-medium",
+        outline: "border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80 shadow-soft hover:shadow-medium",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
         success: "bg-safety-600 text-white hover:bg-safety-700 shadow-soft hover:shadow-medium",
         warning: "bg-warning-500 text-white hover:bg-warning-600 shadow-soft hover:shadow-medium",
         tech: "bg-tech-600 text-white hover:bg-tech-700 shadow-soft hover:shadow-medium",

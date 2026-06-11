@@ -686,6 +686,7 @@ export const translations = {
         "on_duty": "සේවයේ",
         "off_duty": "සේවයෙන් බැහැර",
         "suspended": "තාවකාලිකව නතර කර ඇත",
+        "on_break": "විවේකීව",
         "high_performers": "ඉහළ කාර්ය සාධනය",
         "need_attention": "අවධානය අවශ්‍යයි",
         "search_drivers": "නම, බලපත්‍රය හෝ බස් අංකය මගින් සොයන්න...",

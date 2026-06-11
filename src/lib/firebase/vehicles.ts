@@ -30,7 +30,10 @@ export interface Vehicle {
     address: string
   }
   driver: string
+  driverId?: string
+  driverName?: string
   route: string
+  routeId?: string
   fuel: number
   mileage: number
   lastService: string

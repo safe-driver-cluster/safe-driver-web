@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -25,10 +25,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Users, Phone, Mail, Activity, Plus, Search, Eye, Trash2, Loader2, Edit } from "lucide-react"
+import { Users, Phone, Mail, Activity, Plus, Search, Eye, Trash2, Loader2, Edit, MoreHorizontal, Bus, ChevronDown } from "lucide-react"
 import type { Driver } from "@/lib/driver-types"
+import type { Vehicle } from "@/lib/fleet-types"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/components/language-provider"
 import { useLiveAlerts, isToday } from "@/hooks/use-live-alerts"
@@ -37,6 +47,22 @@ import { useMemo } from "react"
 export default function DriversPage() {
   const { t } = useLanguage()
   const [drivers, setDrivers] = useState<Driver[]>([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [loadingVehicles, setLoadingVehicles] = useState(true)
+
+  const fetchVehicles = async () => {
+    try {
+      setLoadingVehicles(true)
+      const response = await fetch("/api/fleet")
+      if (!response.ok) throw new Error("Failed to fetch vehicles")
+      const data = await response.json()
+      setVehicles(data)
+    } catch (error) {
+      console.error("Error fetching vehicles:", error)
+    } finally {
+      setLoadingVehicles(false)
+    }
+  }
   
   // Real-time alerts integration
   const { alerts: liveAlerts } = useLiveAlerts()
@@ -49,11 +75,9 @@ export default function DriversPage() {
     )
     
     return drivers.map(driver => {
-      // Find alerts for this driver's assigned bus
-      if (!driver.busNumber) return { ...driver, alertCount: 0 }
-      
       const count = activeOrTodayAlerts.filter(alert => 
-        (alert.number_plate === driver.busNumber || alert.busNumber === driver.busNumber)
+        (alert.driverId && alert.driverId === driver.id) ||
+        (alert.driverName && alert.driverName.toLowerCase().trim() === driver.name.toLowerCase().trim())
       ).length
       
       return { ...driver, alertCount: count }
@@ -84,7 +108,6 @@ export default function DriversPage() {
     phone: "",
     email: "",
     busNumber: "",
-    route: "",
     address: "",
     experience: "",
   })
@@ -168,6 +191,7 @@ export default function DriversPage() {
   useEffect(() => {
     // Initial load
     fetchDrivers()
+    fetchVehicles()
   }, [])
 
   // Refetch when filters change with debounce
@@ -265,7 +289,6 @@ export default function DriversPage() {
         phone: "",
         email: "",
         busNumber: "",
-        route: "",
         address: "",
         experience: "",
       })
@@ -379,6 +402,32 @@ export default function DriversPage() {
     }
   }
 
+  const updateDriverStatus = async (driverId: string, newStatus: string) => {
+    try {
+      const response = await fetch(`/api/drivers/${driverId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update status")
+
+      toast({
+        title: "Success",
+        description: `Driver status updated to ${newStatus.replace("_", " ")}.`,
+      })
+
+      fetchDrivers()
+    } catch (error) {
+      console.error("Error updating status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update driver status. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleEditDriver = (driver: Driver) => {
     setEditingDriver(driver)
     setIsEditDialogOpen(true)
@@ -407,7 +456,6 @@ export default function DriversPage() {
           phone: editingDriver.phone,
           email: editingDriver.email,
           busNumber: editingDriver.busNumber || "",
-          route: editingDriver.route || "",
           address: editingDriver.address || "",
           experience: editingDriver.experience || "",
           status: editingDriver.status,
@@ -540,22 +588,59 @@ export default function DriversPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="bus">Bus Number</Label>
-                <Input
-                  id="bus"
-                  value={newDriver.busNumber}
-                  onChange={(e) => setNewDriver({ ...newDriver, busNumber: e.target.value })}
-                  placeholder="NB-1234"
-                />
-              </div>
-              <div>
-                <Label htmlFor="route">Route</Label>
-                <Input
-                  id="route"
-                  value={newDriver.route}
-                  onChange={(e) => setNewDriver({ ...newDriver, route: e.target.value })}
-                  placeholder="Colombo - Kandy"
-                />
+                <Label htmlFor="bus">Bus Number(s)</Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between font-normal text-left h-auto min-h-[40px] py-2 px-3">
+                      <span className="truncate max-w-[90%] whitespace-normal">
+                        {newDriver.busNumber
+                          ? newDriver.busNumber
+                              .split(",")
+                              .map((plate) => {
+                                const v = vehicles.find((veh) => veh.busNumberPlate === plate)
+                                return v ? `${plate}${v.busNumber ? ` (${v.busNumber})` : ""}` : plate
+                              })
+                              .join(", ")
+                          : "Select registered buses"}
+                      </span>
+                      <ChevronDown className="h-4 w-4 opacity-50 flex-shrink-0" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-[350px] max-h-[300px] overflow-y-auto">
+                    <DropdownMenuLabel>Select Buses</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuCheckboxItem
+                      checked={!newDriver.busNumber}
+                      onCheckedChange={() => setNewDriver({ ...newDriver, busNumber: "" })}
+                    >
+                      Unassigned
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuSeparator />
+                    {vehicles.map((v) => {
+                      const plate = v.busNumberPlate || ""
+                      const assignedBuses = newDriver.busNumber ? newDriver.busNumber.split(",") : []
+                      const isChecked = assignedBuses.includes(plate)
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={v.id}
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            let updatedBuses
+                            if (checked) {
+                              updatedBuses = [...assignedBuses, plate]
+                            } else {
+                              updatedBuses = assignedBuses.filter((b) => b !== plate)
+                            }
+                            const uniqueBuses = Array.from(new Set(updatedBuses)).filter(Boolean)
+                            setNewDriver({ ...newDriver, busNumber: uniqueBuses.join(",") })
+                          }}
+                        >
+                          {v.busNumberPlate || "Unknown"} {v.busNumber ? `(${v.busNumber})` : ""}
+                        </DropdownMenuCheckboxItem>
+                      )
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <div>
                 <Label htmlFor="experience">Experience</Label>
@@ -591,31 +676,45 @@ export default function DriversPage() {
         </Dialog>
       </div>
 
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Drivers Statistics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">{t("total_drivers")}</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-              <Users className="h-8 w-8 text-primary" />
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{t("total_drivers")}</CardTitle>
+            <Users className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{stats.total}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">{t("on_duty")}</p>
-                <p className="text-2xl font-bold text-green-600">{stats.onDuty}</p>
-              </div>
-              <Activity className="h-8 w-8 text-green-600" />
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{t("on_duty")}</CardTitle>
+            <Activity className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-500">{stats.onDuty}</div>
           </CardContent>
         </Card>
-      </div >
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{t("off_duty")}</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-muted-foreground">{stats.offDuty}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{t("suspended")}</CardTitle>
+            <Users className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-500">{stats.suspended}</div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Filters */}
       < Card >
@@ -651,146 +750,143 @@ export default function DriversPage() {
       </Card >
 
       {/* Drivers List */}
-      {
-        loading && drivers.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <Loader2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-spin" />
-              <h3 className="text-lg font-medium text-foreground mb-2">Loading drivers...</h3>
-              <p className="text-muted-foreground">Please wait while we fetch driver data.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {driversWithAlertCounts.map((driver) => (
-              <Card
-                key={driver.id}
-                className="group hover:shadow-lg transition-all duration-300 border-l-[6px] overflow-hidden border-l-primary/10"
-              >
-                <CardContent className="p-6">
-                  <div className="flex flex-col lg:flex-row gap-6 items-center lg:items-center">
-                    {/* Driver Profile Section */}
-                    <div className="flex-1 flex gap-5 w-full">
-                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center flex-shrink-0 border-2 border-background shadow-sm ring-1 ring-muted">
-                        <Users className="h-7 w-7 text-muted-foreground" />
-                      </div>
-
-                      <div className="space-y-1.5 flex-1 min-w-0">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <h3 className="text-xl font-bold text-foreground leading-none truncate">
-                            {driver.name}
-                          </h3>
-                          <Badge
-                            variant={driver.status === "on_duty" ? "default" : "secondary"}
-                            className={`uppercase text-[10px] tracking-wider font-bold shadow-sm ${driver.status === "on_duty"
-                              ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                              : driver.status === "suspended"
-                                ? "bg-destructive/10 text-destructive hover:bg-destructive/20"
-                                : "bg-muted text-muted-foreground hover:bg-muted/80"
-                              }`}
-                          >
-                            {driver.status.replace("_", " ")}
-                          </Badge>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-foreground/80">License:</span>
-                            <span className="font-mono">{driver.licenseNumber}</span>
-                          </div>
-                          {(driver.busNumber || driver.route) && (
-                            <div className="flex items-center gap-2 truncate">
-                              {driver.busNumber && (
-                                <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold border border-primary/20">
-                                  {driver.busNumber}
-                                </span>
-                              )}
-                              {driver.route && <span className="text-xs text-muted-foreground truncate">{driver.route}</span>}
-                            </div>
-                          )}
-                          <div className="flex items-center gap-3 col-span-1 sm:col-span-2 mt-1.5 pt-1.5 border-t border-dashed border-border">
-                            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded-full">
-                              <Phone className="h-3 w-3" /> {driver.phone}
-                            </span>
-                            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded-full truncate max-w-[200px]">
-                              <Mail className="h-3 w-3" /> {driver.email}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Stats Section with vertical separator */}
-                    <div className="flex w-full lg:w-auto items-center justify-around lg:justify-center gap-8 px-6 py-3 lg:py-0 lg:border-l lg:border-r border-y lg:border-y-0 border-border bg-muted/20 lg:bg-transparent rounded-lg lg:rounded-none">
-                      <div className="text-center">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Alerts</p>
-                        <div className="text-3xl font-black tabular-nums tracking-tight text-foreground">
-                          {driver.alertCount}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions Section */}
-                    <div className="w-full lg:w-[150px] flex flex-col gap-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setSelectedDriver(driver)}
-                          className="h-8 border border-border hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
-                          title="View Details"
-                        >
-                          <Eye className="h-3.5 w-3.5 mr-1.5" /> View
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEditDriver(driver)}
-                          className="h-8 border border-border hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
-                          title="Edit Driver"
-                        >
-                          <Edit className="h-3.5 w-3.5 mr-1.5" /> Edit
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleContactDriver(driver)}
-                          className="h-8 border border-border hover:border-green-500/50 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20"
-                          title="Call Driver"
-                        >
-                          <Phone className="h-3.5 w-3.5 mr-1.5" /> Call
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDeleteClick(driver)}
-                          disabled={isDeleting}
-                          className="h-8 border border-border hover:border-destructive/50 hover:bg-destructive/5 hover:text-destructive"
-                          title="Delete Driver"
-                        >
-                          <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Del
-                        </Button>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handleToggleStatus(driver.id)}
-                        className={`w-full h-8 text-xs font-semibold shadow-sm transition-all ${driver.status === "on_duty"
-                          ? "bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200 hover:border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800"
-                          : "bg-primary text-primary-foreground hover:bg-primary/90"
-                          }`}
-                      >
-                        {driver.status === "on_duty" ? "Set Off Duty" : "Set On Duty"}
-                      </Button>
+      {loading && drivers.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Loader2 className="h-12 w-12 text-muted-foreground/60 mx-auto mb-4 animate-spin" />
+            <h3 className="text-lg font-medium text-foreground mb-2">Loading drivers...</h3>
+            <p className="text-muted-foreground">Please wait while we fetch driver data.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {filteredDrivers.map((driver) => (
+            <Card key={driver.id || `driver-${driver.licenseNumber}`} className="hover:shadow-lg transition-shadow overflow-visible">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-lg">{driver.name}</CardTitle>
+                    <CardDescription className="flex flex-col gap-1">
+                      <span className="flex items-center gap-1">
+                        License: {driver.licenseNumber}
+                      </span>
+                      {driver.experience && (
+                        <span>
+                          Experience: {driver.experience}
+                        </span>
+                      )}
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant={getStatusColor(driver.status)}>
+                      {driver.status === 'on_duty' ? t('on_duty') :
+                       driver.status === 'off_duty' ? t('off_duty') :
+                       driver.status === 'suspended' ? t('suspended') : 'UNKNOWN'}
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Bus assigned info */}
+                  <div className="text-sm">
+                    <div className="flex items-center gap-2">
+                      <Bus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate" title={(() => {
+                        if (!driver.busNumber) return "No Bus Assigned"
+                        return driver.busNumber.split(",").map((busPlate) => {
+                          const v = vehicles.find((veh) => veh.busNumberPlate === busPlate)
+                          return v ? `${v.busNumberPlate}${v.busNumber ? ` (${v.busNumber})` : ""}` : busPlate
+                        }).join(", ")
+                      })()}>
+                        {(() => {
+                          if (!driver.busNumber) return "No Bus Assigned"
+                          return driver.busNumber.split(",").map((busPlate) => {
+                            const v = vehicles.find((veh) => veh.busNumberPlate === busPlate)
+                            return v ? `${v.busNumberPlate}${v.busNumber ? ` (${v.busNumber})` : ""}` : busPlate
+                          }).join(", ")
+                        })()}
+                      </span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )
-      }
+
+                  {/* Contact details */}
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="flex items-center gap-2 hover:text-primary transition-colors cursor-pointer" onClick={() => handleContactDriver(driver)}>
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span className="truncate">{driver.phone}</span>
+                    </div>
+                    <div className="flex items-center gap-2 hover:text-primary transition-colors">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span className="truncate">{driver.email}</span>
+                    </div>
+                  </div>
+
+                  {/* Footer buttons */}
+                  <div className="flex gap-2 pt-2 flex-wrap items-center">
+                    <Button size="sm" variant="outline" onClick={() => setSelectedDriver(driver)} className="flex-shrink-0">
+                      <Eye className="h-4 w-4 mr-1" />
+                      {t("details")}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleEditDriver(driver)} className="flex-shrink-0">
+                      <Edit className="h-4 w-4 mr-1" />
+                      {t("edit")}
+                    </Button>
+                    <Select
+                       value={driver.status}
+                       onValueChange={(value: Driver["status"]) => {
+                         if (driver.id) {
+                           updateDriverStatus(driver.id, value)
+                         }
+                       }}
+                     >
+                       <SelectTrigger className="h-8 text-xs w-[120px] flex-shrink-0">
+                         <div className="flex items-center gap-2">
+                           <div className={`h-2 w-2 rounded-full ${
+                             driver.status === 'on_duty' ? 'bg-green-500' :
+                             driver.status === 'suspended' ? 'bg-red-500' : 'bg-gray-400'
+                           }`} />
+                           <SelectValue />
+                         </div>
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="on_duty">
+                           <div className="flex items-center gap-2">
+                             <div className="h-2 w-2 rounded-full bg-green-500" />
+                             {t("on_duty")}
+                           </div>
+                         </SelectItem>
+                         <SelectItem value="off_duty">
+                           <div className="flex items-center gap-2">
+                             <div className="h-2 w-2 rounded-full bg-gray-400" />
+                             {t("off_duty")}
+                           </div>
+                         </SelectItem>
+                         <SelectItem value="suspended">
+                           <div className="flex items-center gap-2">
+                             <div className="h-2 w-2 rounded-full bg-red-500" />
+                             {t("suspended")}
+                           </div>
+                         </SelectItem>
+                       </SelectContent>
+                     </Select>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleDeleteClick(driver)}
+                      disabled={!driver.id}
+                      className="bg-red-600 hover:bg-red-700 text-white flex-shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      {t("delete")}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Edit Driver Dialog */}
       {
@@ -846,22 +942,59 @@ export default function DriversPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-bus">Bus Number</Label>
-                  <Input
-                    id="edit-bus"
-                    value={editingDriver.busNumber || ""}
-                    onChange={(e) => setEditingDriver({ ...editingDriver, busNumber: e.target.value })}
-                    placeholder="NB-1234"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-route">Route</Label>
-                  <Input
-                    id="edit-route"
-                    value={editingDriver.route || ""}
-                    onChange={(e) => setEditingDriver({ ...editingDriver, route: e.target.value })}
-                    placeholder="Colombo - Kandy"
-                  />
+                  <Label htmlFor="edit-bus">Bus Number(s)</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between font-normal text-left h-auto min-h-[40px] py-2 px-3">
+                        <span className="truncate max-w-[90%] whitespace-normal">
+                          {editingDriver.busNumber
+                            ? editingDriver.busNumber
+                                .split(",")
+                                .map((plate) => {
+                                  const v = vehicles.find((veh) => veh.busNumberPlate === plate)
+                                  return v ? `${plate}${v.busNumber ? ` (${v.busNumber})` : ""}` : plate
+                                })
+                                .join(", ")
+                            : "Select registered buses"}
+                        </span>
+                        <ChevronDown className="h-4 w-4 opacity-50 flex-shrink-0" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[350px] max-h-[300px] overflow-y-auto">
+                      <DropdownMenuLabel>Select Buses</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuCheckboxItem
+                        checked={!editingDriver.busNumber}
+                        onCheckedChange={() => setEditingDriver({ ...editingDriver, busNumber: "" })}
+                      >
+                        Unassigned
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuSeparator />
+                      {vehicles.map((v) => {
+                        const plate = v.busNumberPlate || ""
+                        const assignedBuses = editingDriver.busNumber ? editingDriver.busNumber.split(",") : []
+                        const isChecked = assignedBuses.includes(plate)
+                        return (
+                          <DropdownMenuCheckboxItem
+                            key={v.id}
+                            checked={isChecked}
+                            onCheckedChange={(checked) => {
+                              let updatedBuses
+                              if (checked) {
+                                updatedBuses = [...assignedBuses, plate]
+                              } else {
+                                updatedBuses = assignedBuses.filter((b) => b !== plate)
+                              }
+                              const uniqueBuses = Array.from(new Set(updatedBuses)).filter(Boolean)
+                              setEditingDriver({ ...editingDriver, busNumber: uniqueBuses.join(",") })
+                            }}
+                          >
+                            {v.busNumberPlate || "Unknown"} {v.busNumber ? `(${v.busNumber})` : ""}
+                          </DropdownMenuCheckboxItem>
+                        )
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <div>
                   <Label htmlFor="edit-experience">Experience</Label>
@@ -892,10 +1025,9 @@ export default function DriversPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="on_duty">On Duty</SelectItem>
-                      <SelectItem value="off_duty">Off Duty</SelectItem>
-                      <SelectItem value="suspended">Suspended</SelectItem>
-
+                      <SelectItem value="on_duty">{t("on_duty")}</SelectItem>
+                      <SelectItem value="off_duty">{t("off_duty")}</SelectItem>
+                      <SelectItem value="suspended">{t("suspended")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -934,73 +1066,50 @@ export default function DriversPage() {
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Driver Details - {selectedDriver.name}</DialogTitle>
-                <DialogDescription>Complete driver information and performance history</DialogDescription>
+                <DialogDescription>Complete driver information</DialogDescription>
               </DialogHeader>
-              <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="profile">Profile</TabsTrigger>
-                  <TabsTrigger value="performance">Performance</TabsTrigger>
-                </TabsList>
-                <TabsContent value="profile" className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Full Name</Label>
-                      <p className="font-medium">{selectedDriver.name}</p>
-                    </div>
-                    <div>
-                      <Label>License Number</Label>
-                      <p className="font-medium">{selectedDriver.licenseNumber}</p>
-                    </div>
-                    <div>
-                      <Label>Phone</Label>
-                      <p className="font-medium">{selectedDriver.phone}</p>
-                    </div>
-                    <div>
-                      <Label>Email</Label>
-                      <p className="font-medium">{selectedDriver.email}</p>
-                    </div>
-                    <div>
-                      <Label>Bus Number</Label>
-                      <p className="font-medium">{selectedDriver.busNumber}</p>
-                    </div>
-                    <div>
-                      <Label>Route</Label>
-                      <p className="font-medium">{selectedDriver.route}</p>
-                    </div>
-                    <div>
-                      <Label>Experience</Label>
-                      <p className="font-medium">{selectedDriver.experience}</p>
-                    </div>
-                    <div>
-                      <Label>Join Date</Label>
-                      <p className="font-medium">{selectedDriver.joinDate}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <Label>Address</Label>
-                      <p className="font-medium">{selectedDriver.address}</p>
-                    </div>
-                  </div>
-                </TabsContent>
-                <TabsContent value="performance" className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <p className="text-sm text-gray-600">Total Alerts</p>
-                        <p className="text-3xl font-bold">{selectedDriver.alertCount}</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <p className="text-sm text-gray-600">Status</p>
-                        <Badge variant={getStatusColor(selectedDriver.status)} className="mt-2">
-                          {selectedDriver.status.replace("_", " ").toUpperCase()}
-                        </Badge>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </TabsContent>
-
-              </Tabs>
+              <div className="grid grid-cols-2 gap-4 pt-4">
+                <div>
+                  <Label>Full Name</Label>
+                  <p className="font-medium">{selectedDriver.name}</p>
+                </div>
+                <div>
+                  <Label>License Number</Label>
+                  <p className="font-medium">{selectedDriver.licenseNumber}</p>
+                </div>
+                <div>
+                  <Label>Phone</Label>
+                  <p className="font-medium">{selectedDriver.phone}</p>
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <p className="font-medium">{selectedDriver.email}</p>
+                </div>
+                <div>
+                  <Label>Bus Number(s)</Label>
+                  <p className="font-medium">
+                    {(() => {
+                      if (!selectedDriver.busNumber) return "N/A"
+                      return selectedDriver.busNumber.split(",").map((busPlate) => {
+                        const v = vehicles.find((veh) => veh.busNumberPlate === busPlate)
+                        return v ? `${v.busNumberPlate}${v.busNumber ? ` (${v.busNumber})` : ""}` : busPlate
+                      }).join(", ")
+                    })()}
+                  </p>
+                </div>
+                <div>
+                  <Label>Experience</Label>
+                  <p className="font-medium">{selectedDriver.experience || "N/A"}</p>
+                </div>
+                <div>
+                  <Label>Join Date</Label>
+                  <p className="font-medium">{selectedDriver.joinDate}</p>
+                </div>
+                <div className="col-span-2">
+                  <Label>Address</Label>
+                  <p className="font-medium">{selectedDriver.address || "N/A"}</p>
+                </div>
+              </div>
             </DialogContent>
           </Dialog>
         )
@@ -1010,9 +1119,9 @@ export default function DriversPage() {
         filteredDrivers.length === 0 && (
           <Card>
             <CardContent className="p-12 text-center">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No drivers found</h3>
-              <p className="text-gray-600">No drivers match your current filters.</p>
+              <Users className="h-12 w-12 text-muted-foreground/60 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">No drivers found</h3>
+              <p className="text-muted-foreground">No drivers match your current filters.</p>
             </CardContent>
           </Card>
         )

@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { GoogleMap, useJsApiLoader, DirectionsRenderer, Marker, InfoWindow, Polyline } from "@react-google-maps/api"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,19 +29,65 @@ interface TransitSearchPanelProps {
 }
 
 export function TransitSearchPanel({ onClose, onSelect, initialOrigin = "Matara", initialDestination = "Colombo" }: TransitSearchPanelProps) {
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-  })
+  const [leafletLoaded, setLeafletLoaded] = useState(false)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const [mapInstance, setMapInstance] = useState<any>(null)
+  const layersRef = useRef<any[]>([])
 
   const [origin, setOrigin] = useState(initialOrigin)
   const [destination, setDestination] = useState(initialDestination)
   const [loading, setLoading] = useState(false)
   const [routes, setRoutes] = useState<TransitRouteResult[]>([])
   const [selectedRoute, setSelectedRoute] = useState<TransitRouteResult | null>(null)
-  
-   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null)
-  const [map, setMap] = useState<google.maps.Map | null>(null)
+
+  // Load Leaflet dynamically
+  useEffect(() => {
+    const loadLeaflet = async () => {
+      if (typeof window === "undefined") return
+
+      if (!document.querySelector('link[href*="leaflet"]')) {
+        const link = document.createElement("link")
+        link.rel = "stylesheet"
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        document.head.appendChild(link)
+      }
+
+      if (!(window as any).L) {
+        const script = document.createElement("script")
+        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        script.onload = () => setLeafletLoaded(true)
+        document.body.appendChild(script)
+      } else {
+        setLeafletLoaded(true)
+      }
+    }
+    loadLeaflet()
+  }, [])
+
+  // Initialize Map
+  useEffect(() => {
+    if (!leafletLoaded || !mapContainerRef.current || !(window as any).L || mapInstance) return
+
+    const L = (window as any).L
+    const map = L.map(mapContainerRef.current, {
+      zoomControl: true,
+    }).setView([center.lat, center.lng], 8)
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map)
+
+    setMapInstance(map)
+  }, [leafletLoaded, mapInstance])
+
+  useEffect(() => {
+    return () => {
+      if (mapInstance) {
+        mapInstance.remove()
+      }
+    }
+  }, [mapInstance])
 
   // Polyline decoder helper
   const decodePolyline = (encoded: string) => {
@@ -83,7 +128,6 @@ export function TransitSearchPanel({ onClose, onSelect, initialOrigin = "Matara"
     setLoading(true)
     setRoutes([])
     setSelectedRoute(null)
-    setDirectionsResponse(null)
 
     try {
       const response = await fetch("/api/maps/transit", {
@@ -102,9 +146,6 @@ export function TransitSearchPanel({ onClose, onSelect, initialOrigin = "Matara"
       if (data.routes && data.routes.length > 0) {
         setRoutes(data.routes)
         setSelectedRoute(data.routes[0])
-        if (isLoaded && GOOGLE_MAPS_API_KEY) {
-           calculateMapDirections(data.routes[0])
-        }
       } else {
          toast({ title: "No Routes", description: "Could not find any transit routes between these points.", variant: "destructive" })
       }
@@ -112,7 +153,7 @@ export function TransitSearchPanel({ onClose, onSelect, initialOrigin = "Matara"
       console.error("Search error:", error)
       toast({ 
         title: "Search Failed", 
-        description: error.message || "Unable to find routes. Please check your API key and connection.", 
+        description: error.message || "Unable to find routes. Please check your connection.", 
         variant: "destructive" 
       })
     } finally {
@@ -120,49 +161,84 @@ export function TransitSearchPanel({ onClose, onSelect, initialOrigin = "Matara"
     }
   }
 
-  const calculateMapDirections = (routeToRender?: TransitRouteResult) => {
-      if (!isLoaded || !window.google) return;
-
-      const directionsService = new window.google.maps.DirectionsService();
-      directionsService.route({
-        origin: origin,
-        destination: destination,
-        travelMode: window.google.maps.TravelMode.TRANSIT,
-        transitOptions: {
-            modes: [window.google.maps.TransitMode.BUS]
-        }
-      }, (result, status) => {
-        if (status === window.google.maps.DirectionsStatus.OK && result) {
-            setDirectionsResponse(result);
-        } else {
-            console.warn("Transit directions failed, trying driving mode for map display...");
-            directionsService.route({
-                origin: origin,
-                destination: destination,
-                travelMode: window.google.maps.TravelMode.DRIVING,
-            }, (drivingResult, drivingStatus) => {
-                if (drivingStatus === window.google.maps.DirectionsStatus.OK && drivingResult) {
-                    setDirectionsResponse(drivingResult);
-                } else {
-                    console.error("All map directions failed", drivingStatus);
-                }
-            });
-        }
-      });
-  }
-
   const handleRouteSelect = (route: TransitRouteResult) => {
       setSelectedRoute(route)
-      calculateMapDirections(route)
   }
 
-  const onLoad = useCallback(function callback(map: google.maps.Map) {
-    setMap(map)
-  }, [])
+  // Draw layers (route line & stop markers)
+  useEffect(() => {
+    if (!mapInstance || !leafletLoaded || !selectedRoute || !(window as any).L) return
 
-  const onUnmount = useCallback(function callback() {
-    setMap(null)
-  }, [])
+    const L = (window as any).L
+
+    // Clear old layers
+    layersRef.current.forEach(layer => mapInstance.removeLayer(layer))
+    layersRef.current = []
+
+    const newLayers: any[] = []
+
+    // Decode polyline or fallback to stops
+    const pathPoints = selectedRoute.polyline 
+      ? decodePolyline(selectedRoute.polyline)
+      : selectedRoute.stops.map(s => ({ lat: s.lat, lng: s.lng }))
+
+    const latLngs: Array<[number, number]> = pathPoints.map(p => [p.lat, p.lng])
+
+    if (latLngs.length > 0) {
+      // Draw route polyline
+      const polyline = L.polyline(latLngs, {
+        color: "#4285F4",
+        weight: 6,
+        opacity: 0.8,
+      }).addTo(mapInstance)
+      newLayers.push(polyline)
+
+      // Fit map bounds to the polyline
+      mapInstance.fitBounds(polyline.getBounds(), { padding: [50, 50] })
+    }
+
+    // Draw markers for stops
+    selectedRoute.stops.forEach((stop, i) => {
+      const isStart = i === 0
+      const isEnd = i === selectedRoute.stops.length - 1
+      const iconColor = isStart ? "#10b981" : isEnd ? "#ef4444" : "#3b82f6"
+
+      const icon = L.divIcon({
+        className: "custom-stop-marker",
+        html: `
+          <div style="
+            background-color: ${iconColor};
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+          ">${i + 1}</div>
+        `,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      })
+
+      const marker = L.marker([stop.lat, stop.lng], { icon }).addTo(mapInstance)
+      
+      marker.bindPopup(`
+        <div style="font-family: sans-serif; padding: 4px;">
+          <strong style="font-size: 13px; color: #1f2937;">Stop ${i + 1}: ${stop.name}</strong>
+          ${stop.details ? `<div style="font-size: 11px; color: #6b7280; margin-top: 2px;">${stop.details}</div>` : ""}
+        </div>
+      `)
+
+      newLayers.push(marker)
+    })
+
+    layersRef.current = newLayers
+  }, [selectedRoute, mapInstance, leafletLoaded])
 
   return (
     <div className="fixed inset-0 z-[100] bg-neutral-900/60 backdrop-blur-md flex items-center justify-center p-6 md:p-16 animate-in fade-in duration-300">
@@ -312,7 +388,6 @@ export function TransitSearchPanel({ onClose, onSelect, initialOrigin = "Matara"
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedRoute(null);
-                              setDirectionsResponse(null);
                             }}
                           >
                             Back
@@ -358,128 +433,22 @@ export function TransitSearchPanel({ onClose, onSelect, initialOrigin = "Matara"
 
         {/* Map Area */}
         <div className="flex-1 relative bg-neutral-100 h-[55vh] md:h-full">
-          {isLoaded && GOOGLE_MAPS_API_KEY ? (
-            <GoogleMap
-              mapContainerStyle={mapContainerStyle}
-              center={center}
-              zoom={8}
-              onLoad={onLoad}
-              onUnmount={onUnmount}
-              options={{
-                disableDefaultUI: true,
-                zoomControl: true,
-                mapTypeControl: true,
-                streetViewControl: false,
-                fullscreenControl: false,
-              }}
-            >
-              {directionsResponse && (
-                <DirectionsRenderer
-                  options={{
-                    directions: directionsResponse,
-                    polylineOptions: {
-                      strokeColor: "#4285F4",
-                      strokeOpacity: 0.8,
-                      strokeWeight: 6,
-                    },
-                    suppressMarkers: false,
-                  }}
-                />
-              )}
-
-              {directionsResponse &&
-                selectedRoute &&
-                (() => {
-                  const route = directionsResponse.routes[0];
-                  if (!route || !route.legs || !route.legs[0]) return null;
-
-                  const leg = route.legs[0];
-                  const midpointIndex = Math.floor(leg.steps.length / 2);
-                  const midpoint = leg.steps[midpointIndex]?.start_location;
-
-                  if (!midpoint) return null;
-
-                  return (
-                    <InfoWindow
-                      position={midpoint}
-                      options={{ disableAutoPan: true }}
-                    >
-                      <div className="flex flex-col gap-0.5 px-1 py-0.5 font-sans">
-                        <div className="flex items-center gap-2 text-neutral-800 font-bold text-sm whitespace-nowrap">
-                          <Bus className="h-4 w-4 text-neutral-500" />
-                          <span>
-                            {Math.floor(selectedRoute.duration / 60) > 0
-                              ? `${Math.floor(selectedRoute.duration / 60)} hr `
-                              : ""}
-                            {selectedRoute.duration % 60} min
-                          </span>
-                        </div>
-                        {selectedRoute.busLine && (
-                          <div className="text-[10px] text-neutral-500 font-medium ml-6">
-                            {selectedRoute.busLine}
-                          </div>
-                        )}
-                      </div>
-                    </InfoWindow>
-                  );
-                })()}
-
-              {/* Fallback route line if directions fail */}
-              {!directionsResponse && selectedRoute && (
-                <Polyline
-                  path={selectedRoute.polyline 
-                    ? decodePolyline(selectedRoute.polyline)
-                    : selectedRoute.stops.map(stop => ({ lat: stop.lat, lng: stop.lng }))}
-                  options={{
-                    strokeColor: "#4285F4",
-                    strokeOpacity: 0.6,
-                    strokeWeight: 5,
-                    geodesic: true,
-                  }}
-                />
-              )}
-
-              {/* Fallback markers if directions fail */}
-              {!directionsResponse &&
-                selectedRoute?.stops.map((stop, i) => (
-                  <Marker
-                    key={i}
-                    position={{ lat: stop.lat, lng: stop.lng }}
-                    label={{
-                      text: String(i + 1),
-                      color: "white",
-                      fontSize: "10px",
-                      fontWeight: "bold",
-                    }}
-                  />
-                ))}
-            </GoogleMap>
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-neutral-400 p-8 text-center">
-              {!GOOGLE_MAPS_API_KEY ? (
-                <div className="bg-white p-8 rounded-3xl shadow-lg border max-w-md">
-                  <AlertTriangle className="h-16 w-16 mb-6 text-amber-500 mx-auto" />
-                  <p className="font-black text-2xl text-neutral-800 mb-2">
-                    API Key Missing
-                  </p>
-                  <p className="text-neutral-500">
-                    Please set{" "}
-                    <code className="bg-neutral-100 px-2 py-1 rounded text-neutral-800 text-sm">
-                      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-                    </code>{" "}
-                    in your .env file to enable the interactive map.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <Loader2 className="h-12 w-12 animate-spin mb-4 text-blue-500" />{" "}
-                  <p className="text-lg font-medium">Loading Google Maps...</p>
-                </>
-              )}
+          <div ref={mapContainerRef} className="w-full h-full" style={{ zIndex: 0 }} />
+          {!leafletLoaded && (
+            <div className="absolute inset-0 bg-neutral-100 flex items-center justify-center z-10 border border-neutral-200">
+              <div className="text-center">
+                <Loader2 className="h-10 w-10 text-blue-500 animate-spin mx-auto mb-4" />
+                <p className="text-neutral-600 font-bold">Loading Map...</p>
+              </div>
             </div>
           )}
         </div>
       </div>
+      <style jsx global>{`
+        .custom-stop-marker { background: transparent; border: none; }
+        .leaflet-container { height: 100%; width: 100%; z-index: 0; }
+        .leaflet-popup-content-wrapper { border-radius: 1rem; border: none; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); }
+      `}</style>
     </div>
   );
 }

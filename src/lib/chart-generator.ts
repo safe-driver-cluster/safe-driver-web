@@ -293,3 +293,109 @@ export const generateComplianceChart = async (compliance: any): Promise<string> 
     },
   })
 }
+
+/**
+ * Generates a bar chart for Safety Incidents Summary (Drowsiness, Distraction, Object Detection)
+ */
+export const generateIncidentBarChart = async (counts: {
+  drowsiness: number
+  distraction: number
+  phone: number
+  smoking: number
+  drinking: number
+}): Promise<string> => {
+  const totalObjectDetection = counts.phone + counts.smoking + counts.drinking
+
+  return generateChartImage({
+    type: "bar",
+    width: 600,
+    height: 300,
+    data: {
+      labels: [
+        "Drowsiness",
+        "Distraction",
+        `Object Detection (Total: ${totalObjectDetection})`,
+        "  • Mobile Phone",
+        "  • Smoking",
+        "  • Drinking"
+      ],
+      datasets: [
+        {
+          data: [
+            counts.drowsiness,
+            counts.distraction,
+            totalObjectDetection,
+            counts.phone,
+            counts.smoking,
+            counts.drinking
+          ],
+          backgroundColor: [
+            "rgba(239, 68, 68, 0.8)",   // Drowsiness: Red
+            "rgba(245, 158, 11, 0.8)",  // Distraction: Amber
+            "rgba(37, 99, 235, 0.85)",  // Object Detection: Blue
+            "rgba(59, 130, 246, 0.6)",  // Phone: Light Blue
+            "rgba(71, 85, 105, 0.6)",   // Smoking: Slate
+            "rgba(99, 102, 241, 0.6)"   // Drinking: Indigo
+          ],
+          borderColor: [
+            "rgb(239, 68, 68)",
+            "rgb(245, 158, 11)",
+            "rgb(37, 99, 235)",
+            "rgb(59, 130, 246)",
+            "rgb(71, 85, 105)",
+            "rgb(99, 102, 241)"
+          ],
+          borderWidth: 1,
+          barPercentage: 0.65,
+        },
+      ],
+    },
+    options: {
+      indexAxis: "y", // Horizontal bar chart
+      responsive: false,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            precision: 0,
+            font: {
+              size: 10,
+            },
+          },
+          title: {
+            display: true,
+            text: "Incident Count",
+            font: {
+              size: 11,
+              weight: "bold",
+            },
+          },
+        },
+        y: {
+          ticks: {
+            font: {
+              size: 10,
+              weight: "bold",
+            },
+          },
+        },
+      },
+      plugins: {
+        legend: {
+          display: false, // Dataset labels are redundant here
+        },
+        title: {
+          display: true,
+          text: "Incident Summary Chart",
+          font: {
+            size: 13,
+            weight: "bold",
+          },
+          padding: { bottom: 10 },
+        },
+      },
+    },
+  })
+}

@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow, Circle } from "@react-google-maps/api"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -98,19 +97,80 @@ export default function RouteMonitoring() {
     totalVehicles: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [updatingStatusIds, setUpdatingStatusIds] = useState<Set<string>>(new Set())
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
   const [modalTab, setModalTab] = useState<"map" | "hazards">("map")
   const [selectedHazardInfo, setSelectedHazardInfo] = useState<HazardZone | null>(null)
   const [routeHazards, setRouteHazards] = useState<HazardZone[]>([])
   const [hazardsLoading, setHazardsLoading] = useState(false)
 
-  const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""
-  const { isLoaded: isMapLoaded } = useJsApiLoader({
-    id: "google-map-script",
-    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-  })
+  const [leafletLoaded, setLeafletLoaded] = useState(false)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const [mapRef, setMapRef] = useState<any>(null)
+  const layersRef = useRef<any[]>([])
+  const hazardMarkersRef = useRef<{ [key: string]: any }>({})
 
-  const [mapRef, setMapRef] = useState<google.maps.Map | null>(null)
+  // Load Leaflet dynamically
+  useEffect(() => {
+    const loadLeaflet = async () => {
+      if (typeof window === "undefined") return
+
+      if (!document.querySelector('link[href*="leaflet"]')) {
+        const link = document.createElement("link")
+        link.rel = "stylesheet"
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        document.head.appendChild(link)
+      }
+
+      if (!(window as any).L) {
+        const script = document.createElement("script")
+        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        script.onload = () => setLeafletLoaded(true)
+        document.body.appendChild(script)
+      } else {
+        setLeafletLoaded(true)
+      }
+    }
+    loadLeaflet()
+  }, [])
+
+  // Initialize Map
+  useEffect(() => {
+    if (!leafletLoaded || modalTab !== "hazards" || !mapContainerRef.current || !(window as any).L || mapRef) return
+
+    const L = (window as any).L
+    const map = L.map(mapContainerRef.current).setView([hazardMapCenter.lat, hazardMapCenter.lng], 8)
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map)
+
+    setMapRef(map)
+  }, [leafletLoaded, modalTab, mapRef])
+
+  // Clean up map when modalTab changes, route changes or unmounts
+  useEffect(() => {
+    if (modalTab !== "hazards" && mapRef) {
+      mapRef.remove()
+      setMapRef(null)
+    }
+  }, [modalTab, mapRef])
+
+  useEffect(() => {
+    if (!selectedRoute && mapRef) {
+      mapRef.remove()
+      setMapRef(null)
+    }
+  }, [selectedRoute, mapRef])
+
+  useEffect(() => {
+    return () => {
+      if (mapRef) {
+        mapRef.remove()
+        setMapRef(null)
+      }
+    }
+  }, [mapRef])
 
   // Fetch ALL hazards (no proximity filter — user placed them, they're all relevant)
   useEffect(() => {
@@ -118,7 +178,6 @@ export default function RouteMonitoring() {
     const fetchHazards = async () => {
       setHazardsLoading(true)
       setSelectedHazardInfo(null)
-      setMapRef(null)
       try {
         const all = await hazardService.getAllHazards()
         setRouteHazards(all)
@@ -131,43 +190,112 @@ export default function RouteMonitoring() {
     fetchHazards()
   }, [modalTab, selectedRoute])
 
-  // Fit map bounds to show all hazards + route stop coords when map loads
-  const onHazardMapLoad = (map: google.maps.Map) => {
-    setMapRef(map)
-    if (!selectedRoute) return
-    const bounds = new window.google.maps.LatLngBounds()
+  // Draw layers
+  useEffect(() => {
+    if (!mapRef || !leafletLoaded || !(window as any).L) return
+
+    const L = (window as any).L
+
+    // Clear old layers
+    layersRef.current.forEach(layer => mapRef.removeLayer(layer))
+    layersRef.current = []
+    hazardMarkersRef.current = {}
+
+    const newLayers: any[] = []
+
+    // Draw existing hazards
+    routeHazards.forEach(hazard => {
+      const position: [number, number] = [hazard.latitude, hazard.longitude]
+      const color = hazard.type === "accident" ? "#ef4444" : hazard.type === "school" ? "#eab308" : "#f59e0b"
+
+      const circle = L.circle(position, {
+        radius: hazard.radius,
+        fillColor: color,
+        fillOpacity: 0.15,
+        color: color,
+        weight: 1.5,
+      }).addTo(mapRef)
+      newLayers.push(circle)
+
+      const icon = L.divIcon({
+        className: "custom-hazard-marker",
+        html: `
+          <div style="position: relative; width: 32px; height: 32px;">
+            <svg viewBox="0 0 24 24" width="32" height="32" style="display: block; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.35));">
+              <path fill="${color}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+              <circle cx="12" cy="9" r="3.5" fill="rgba(0, 0, 0, 0.4)"/>
+            </svg>
+          </div>
+        `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32],
+      })
+
+      const marker = L.marker(position, { icon }).addTo(mapRef)
+
+      const popupContent = `
+        <div class="p-2" style="min-width: 180px; font-family: sans-serif;">
+          <h3 class="font-bold text-sm mb-1" style="margin: 0 0 4px 0; font-weight: 700; font-size: 14px; color: #1f2937;">${hazard.name}</h3>
+          <p class="text-xs text-muted-foreground capitalize" style="margin: 0 0 4px 0; color: #6b7280;">
+            Type: ${hazard.type === "other" && hazard.customType ? hazard.customType : hazard.type}
+          </p>
+          ${hazard.location ? `<p class="text-xs text-muted-foreground" style="margin: 0 0 8px 0; color: #9ca3af;">📍 ${hazard.location}</p>` : ''}
+          <div style="display: inline-block; background: #fef3c7; color: #92400e; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">
+            ${hazard.radius}m radius
+          </div>
+        </div>
+      `
+      marker.bindPopup(popupContent)
+
+      marker.on("click", () => {
+        setSelectedHazardInfo(hazard)
+      })
+
+      if (hazard.id) {
+        hazardMarkersRef.current[hazard.id] = marker
+      }
+
+      newLayers.push(marker)
+    })
+
+    // Fit bounds automatically when routeHazards or selectedRoute changes
+    const bounds = L.latLngBounds()
     let hasPoints = false
 
-    // Add all hazard positions
     routeHazards.forEach(h => {
-      bounds.extend({ lat: h.latitude, lng: h.longitude })
+      bounds.extend([h.latitude, h.longitude])
       hasPoints = true
     })
 
-    // Add route stop positions
-    selectedRoute.stops.forEach(s => {
-      if (s.latitude && s.longitude) {
-        bounds.extend({ lat: s.latitude, lng: s.longitude })
-        hasPoints = true
-      }
-    })
+    if (selectedRoute) {
+      selectedRoute.stops.forEach(s => {
+        if (s.latitude && s.longitude) {
+          bounds.extend([s.latitude, s.longitude])
+          hasPoints = true
+        }
+      })
+    }
 
     if (hasPoints) {
-      map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 })
-    } else {
-      // Fall back to Sri Lanka center
-      map.setCenter({ lat: 7.8731, lng: 80.7718 })
-      map.setZoom(8)
+      mapRef.fitBounds(bounds, { padding: [50, 50] })
     }
-  }
 
-  // Recenter map when a hazard card is clicked
+    layersRef.current = newLayers
+  }, [routeHazards, selectedRoute, mapRef, leafletLoaded])
+
+  // Recenter map when selectedHazardInfo changes
+  useEffect(() => {
+    if (!mapRef || !selectedHazardInfo) return
+    const marker = hazardMarkersRef.current[selectedHazardInfo.id!]
+    if (marker) {
+      marker.openPopup()
+      mapRef.setView([selectedHazardInfo.latitude, selectedHazardInfo.longitude], 14)
+    }
+  }, [selectedHazardInfo, mapRef])
+
   const panToHazard = (h: HazardZone) => {
     setSelectedHazardInfo(h)
-    if (mapRef) {
-      mapRef.panTo({ lat: h.latitude, lng: h.longitude })
-      mapRef.setZoom(14)
-    }
   }
 
   const hazardMapCenter = { lat: 7.8731, lng: 80.7718 }
@@ -232,6 +360,26 @@ export default function RouteMonitoring() {
       setStats(data)
     } catch (error) {
       console.error("Error fetching stats:", error)
+    }
+  }
+
+  // Update route status inline
+  const updateRouteStatus = async (id: string, status: string) => {
+    setUpdatingStatusIds(prev => new Set(prev).add(id))
+    try {
+      const response = await fetch(`/api/routes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      })
+      if (!response.ok) throw new Error("Failed to update status")
+      setRoutes(prev => prev.map(r => r.id === id ? { ...r, status: status as any } : r))
+      fetchStats()
+      toast({ title: "Status Updated", description: `Route status changed to ${status}.` })
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" })
+    } finally {
+      setUpdatingStatusIds(prev => { const s = new Set(prev); s.delete(id); return s })
     }
   }
 
@@ -396,17 +544,13 @@ export default function RouteMonitoring() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 bg-[#fafafa] min-h-screen">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex justify-between items-center mb-8"
-      >
+    <div className="container mx-auto px-4 py-8 bg-background text-foreground min-h-screen">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900 mb-2">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
             {t("route_monitoring")}
           </h1>
-          <p className="text-neutral-600">{t("route_monitoring_desc")}</p>
+          <p className="text-muted-foreground">{t("route_monitoring_desc")}</p>
         </div>
         <Dialog open={showAddRoute} onOpenChange={(open) => {
             setShowAddRoute(open);
@@ -475,232 +619,202 @@ export default function RouteMonitoring() {
             </DialogContent>
           </Dialog>
 
-      </motion.div>
+      </div>
 
 
       {/* Route Statistics */}
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-8"
-      >
-        {[
-          {
-            title: t("active_routes"),
-            value: stats.active,
-            context: t("routes_total_context", { total: stats.total }),
-            icon: RouteIcon,
-            color: "text-blue-600",
-            bg: "bg-blue-50",
-          },
-          {
-            title: t("vehicles_on_routes"),
-            value: stats.totalVehicles,
-            context: t("currently_operating"),
-            icon: Bus,
-            color: "text-indigo-600",
-            bg: "bg-indigo-50",
-          },
-        ].map((stat, idx) => (
-          <motion.div key={idx} variants={itemVariants}>
-            <Card className="border-none shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group relative bg-white">
-              <div className={`absolute top-0 left-0 w-1.5 h-full ${stat.bg.replace("bg-", "bg-opacity-100 bg-")}`} />
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
-                  {stat.title}
-                </CardTitle>
-                <div className={`p-2.5 rounded-xl ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform shadow-sm`}>
-                  <stat.icon className="h-5 w-5" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-3xl font-bold ${stat.color} mb-1 tracking-tight`}>{stat.value}</div>
-                <p className="text-sm text-neutral-400 font-semibold">{stat.context}</p>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </motion.div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Routes</CardTitle>
+            <RouteIcon className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{stats.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{t("active")}</CardTitle>
+            <RouteIcon className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-500">{stats.active}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{t("inactive")}</CardTitle>
+            <RouteIcon className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-500">{stats.inactive}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{t("vehicles_on_routes")}</CardTitle>
+            <Bus className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-500">{stats.totalVehicles}</div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Filters Section */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="mb-8"
-      >
-        <Card className="border-none shadow-sm bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50">
-          <CardContent className="pt-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative group">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neutral-400 h-5 w-5 group-focus-within:text-blue-500 transition-colors" />
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Filter Routes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4 items-center">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder={t("search_routes")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-12 h-12 border-neutral-200 focus:border-blue-500 focus:ring-blue-500 rounded-2xl bg-white shadow-inner"
+                  className="pl-10"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full md:w-56 h-12 border-neutral-200 rounded-2xl bg-white font-semibold">
-                  <SelectValue placeholder={t("status")} />
-                </SelectTrigger>
-                <SelectContent className="rounded-2xl border-neutral-200 shadow-xl p-2">
-                  <SelectItem value="all" className="rounded-xl">{t("all_routes")}</SelectItem>
-                  <SelectItem value="active" className="rounded-xl">{t("active")}</SelectItem>
-                  <SelectItem value="inactive" className="rounded-xl">{t("inactive")}</SelectItem>
-                  <SelectItem value="maintenance" className="rounded-xl">{t("route_maintenance")}</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder={t("status")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("all_routes")}</SelectItem>
+                <SelectItem value="active">{t("active")}</SelectItem>
+                <SelectItem value="inactive">{t("inactive")}</SelectItem>
+                <SelectItem value="maintenance">{t("route_maintenance")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Routes Grid */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center p-24 bg-white rounded-[2rem] shadow-sm border border-neutral-100">
-          <Loader2 className="h-20 w-20 text-blue-500 mb-8 animate-spin" />
-          <h3 className="text-2xl font-bold text-neutral-900 mb-2">{t("loading_routes")}</h3>
-          <p className="text-neutral-500 font-medium text-lg">{t("wait_fetching")}</p>
-        </div>
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Loader2 className="h-12 w-12 text-muted-foreground/60 mx-auto mb-4 animate-spin" />
+            <h3 className="text-lg font-medium text-foreground mb-2">{t("loading_routes")}</h3>
+            <p className="text-muted-foreground">{t("wait_fetching")}</p>
+          </CardContent>
+        </Card>
       ) : filteredRoutes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-24 bg-white rounded-[2rem] shadow-sm border border-neutral-100">
-          <div className="p-10 bg-neutral-50 rounded-full mb-8 shadow-inner">
-            <RouteIcon className="h-20 w-20 text-neutral-200" />
-          </div>
-          <h3 className="text-2xl font-bold text-neutral-900 mb-2">{t("no_routes_found")}</h3>
-          <p className="text-neutral-500 font-medium text-lg">{t("no_routes_match")}</p>
-        </div>
+        <Card>
+          <CardContent className="p-12 text-center">
+            <RouteIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-foreground mb-2">{t("no_routes_found")}</h3>
+            <p className="text-muted-foreground">{t("no_routes_match")}</p>
+          </CardContent>
+        </Card>
       ) : (
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12"
-        >
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredRoutes.map((route) => (
-            <motion.div key={route.id} variants={itemVariants}>
-              <Card className="group hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 border-none shadow-lg overflow-hidden bg-white rounded-[2rem] relative">
-                <div className={`h-2.5 w-full ${route.status === "active" ? "bg-emerald-500" : "bg-neutral-300"}`} />
-                <CardHeader className="pb-6 pt-8 px-8">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <CardTitle className="text-3xl font-bold text-neutral-900 group-hover:text-blue-600 transition-colors tracking-tight flex items-baseline gap-2">
-                          {route.name}
-                          <span className="text-sm font-medium text-neutral-400">
-                            ({route.startPoint.replace(/ Bus Stop/i, "")} - {route.endPoint.replace(/ Bus Stop/i, "")})
-                          </span>
-                        </CardTitle>
-                        <Badge
-                          variant={route.status === "active" ? "success" : "secondary"}
-                          className="rounded-full px-4 py-1.5 text-[11px] uppercase font-bold tracking-widest shadow-sm"
-                        >
-                          {t(route.status as any)}
-                        </Badge>
-                      </div>
-                    </div>
-                    <Button variant="outline" size="icon" className="rounded-2xl hover:bg-blue-50 hover:text-blue-600 border-neutral-200 shadow-sm h-12 w-12 shrink-0">
-                      <Maximize2 className="h-6 w-6" />
-                    </Button>
+            <Card key={route.id} className="hover:shadow-lg transition-shadow overflow-visible">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-lg">{route.name}
+                      {route.busNumber && <span className="text-sm font-normal text-muted-foreground ml-2">({route.startPoint.replace(/ Bus Stop/i, "")} – {route.endPoint.replace(/ Bus Stop/i, "")})</span>}
+                    </CardTitle>
+                    <CardDescription className="flex flex-col gap-1">
+                      {!route.busNumber && (
+                        <span className="flex items-center gap-1">
+                          {route.startPoint.replace(/ Bus Stop/i, "")} → {route.endPoint.replace(/ Bus Stop/i, "")}
+                        </span>
+                      )}
+                      {route.busNumber && (
+                        <span>Route No: {route.busNumber}</span>
+                      )}
+                    </CardDescription>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-8 pb-10 px-8">
+                  <Badge variant={route.status === "active" ? "success" : "secondary"}>
+                    {t(route.status as any)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
                   {/* Route Journey */}
-                  <div className="flex items-center justify-between bg-neutral-50/80 p-5 rounded-[1.5rem] border border-neutral-100">
+                  <div className="flex items-center justify-between bg-muted/40 p-4 rounded-lg border border-border">
                     <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Terminal A</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Terminal A</p>
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-emerald-500" />
-                        <span className="font-bold text-neutral-800">{route.startPoint}</span>
+                        <span className="font-semibold text-sm text-foreground">{route.startPoint}</span>
                       </div>
                     </div>
-                    <div className="flex-1 flex items-center justify-center px-4 opacity-50">
-                      <div className="h-[2px] w-full max-w-[40px] bg-neutral-200 rounded-full" />
-                      <ArrowRightLeft className="h-4 w-4 text-neutral-400 mx-2" />
-                      <div className="h-[2px] w-full max-w-[40px] bg-neutral-200 rounded-full" />
-                    </div>
+                    <ArrowRightLeft className="h-4 w-4 text-muted-foreground mx-2" />
                     <div className="space-y-1 text-right">
-                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Terminal B</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Terminal B</p>
                       <div className="flex items-center justify-end gap-2">
-                        <span className="font-bold text-neutral-800">{route.endPoint}</span>
+                        <span className="font-semibold text-sm text-foreground">{route.endPoint}</span>
                         <MapPin className="h-4 w-4 text-rose-500" />
                       </div>
                     </div>
                   </div>
-                  {/* Assigned Buses Section */}
-                  <div className="mt-2 bg-neutral-50 p-4 sm:p-6 rounded-[1.5rem] border border-neutral-100 shadow-inner">
-                    <h3 className="text-lg font-bold mb-4 flex items-center gap-3">
-                      <Bus className="h-5 w-5 text-emerald-500" />
-                      Assigned Buses
-                    </h3>
+
+                  {/* Assigned Buses */}
+                  <div className="text-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Bus className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-muted-foreground">Assigned Buses</span>
+                    </div>
                     {route.vehicles && route.vehicles.length > 0 ? (
-                      <div className="flex flex-wrap gap-3">
+                      <div className="flex flex-wrap gap-2">
                         {route.vehicles.map((vehicleId: string, idx: number) => (
                           <Dialog key={idx}>
                             <DialogTrigger asChild>
-                              <button className="flex items-center gap-2 bg-white px-4 py-3 rounded-2xl border border-neutral-200 shadow-sm transition-transform hover:-translate-y-1 hover:border-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                                <Bus className="h-4 w-4 text-neutral-400" />
-                                <span className="font-bold text-sm text-neutral-800">{vehicleId}</span>
-                                <Badge className="ml-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] pointer-events-none">On Route</Badge>
+                              <button className="flex items-center gap-1.5 bg-background px-3 py-1.5 rounded-lg border border-border text-sm hover:border-primary transition-colors">
+                                <Bus className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="font-medium text-foreground">{vehicleId}</span>
+                                <Badge className="ml-1 bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 text-[10px] pointer-events-none">On Route</Badge>
                               </button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-md rounded-[2rem] border-none shadow-2xl">
+                            <DialogContent className="sm:max-w-md">
                               <DialogHeader>
-                                <DialogTitle className="flex items-center gap-3 text-2xl font-bold">
-                                  <div className="p-2 bg-emerald-50 text-emerald-500 rounded-xl">
-                                    <Bus className="h-6 w-6" />
-                                  </div>
+                                <DialogTitle className="flex items-center gap-2">
+                                  <Bus className="h-5 w-5" />
                                   Bus {vehicleId}
                                 </DialogTitle>
-                                <DialogDescription className="font-medium text-neutral-500">
+                                <DialogDescription>
                                   Live tracking and metrics for this bus on {route.name}.
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="grid grid-cols-2 gap-4 py-4">
-                                <div className="col-span-2 bg-emerald-50 p-5 rounded-[1.5rem] border border-emerald-100">
-                                  <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Status</p>
-                                  <p className="text-2xl font-bold text-emerald-700 mt-1">Active</p>
+                                <div className="col-span-2 bg-emerald-50 dark:bg-emerald-950/20 p-4 rounded-lg border border-emerald-100 dark:border-emerald-900/30">
+                                  <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase mb-1">Status</p>
+                                  <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">Active</p>
                                 </div>
-                                <div className="col-span-2 bg-neutral-50 p-5 rounded-[1.5rem] border border-neutral-100">
-                                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">Current Location</p>
-                                  <div className="flex items-center gap-3 bg-white p-3 rounded-xl shadow-sm">
-                                    <div className="p-2 bg-rose-50 text-rose-500 rounded-lg">
-                                      <MapPin className="h-5 w-5" />
-                                    </div>
-                                    <span className="font-bold text-neutral-700">En route to next stop</span>
+                                <div className="col-span-2 bg-muted/50 p-4 rounded-lg border border-border">
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Current Location</p>
+                                  <div className="flex items-center gap-2">
+                                    <MapPin className="h-4 w-4 text-rose-500" />
+                                    <span className="font-medium text-foreground">En route to next stop</span>
                                   </div>
                                 </div>
-                              </div>
-                              <div className="pt-2">
-                                <Button className="w-full h-12 rounded-2xl bg-neutral-900 text-white font-bold hover:bg-neutral-800">
-                                  View Full Tracking
-                                </Button>
                               </div>
                             </DialogContent>
                           </Dialog>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-4 text-neutral-400 font-bold text-sm">
-                        No buses currently assigned.
-                      </div>
+                      <p className="text-muted-foreground text-sm">No buses currently assigned.</p>
                     )}
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex flex-wrap gap-4 pt-4 border-t border-neutral-100">
-                    <Button
-                      variant="outline"
-                      className="rounded-2xl border-neutral-200 h-14 px-8 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all font-bold text-sm uppercase tracking-wider"
-                      onClick={() => setSelectedRoute(route)}
-                    >
-                      <MapPin className="h-5 w-5 mr-3" />
+                  <div className="flex gap-2 pt-2 flex-wrap items-center">
+                    <Button size="sm" variant="outline" onClick={() => setSelectedRoute(route)} className="flex-shrink-0">
+                      <Eye className="h-4 w-4 mr-1" />
                       View Map
                     </Button>
-
-                    <Button variant="ghost" className="rounded-2xl h-14 px-6 text-neutral-500 font-bold text-sm uppercase tracking-wider hover:text-blue-600 hover:bg-blue-50"
+                    <Button size="sm" variant="outline" className="flex-shrink-0"
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditingRouteId(route.id);
@@ -712,20 +826,65 @@ export default function RouteMonitoring() {
                         setShowAddRoute(true);
                       }}
                     >
+                      <Activity className="h-4 w-4 mr-1" />
                       Edit
                     </Button>
-                    <Button variant="ghost" className="rounded-2xl h-14 px-6 text-rose-500 font-bold text-sm uppercase tracking-wider hover:text-rose-600 hover:bg-rose-50"
-                      onClick={(e) => handleDeleteRoute(route.id, e)}
+                    <Select
+                      value={route.status}
+                      disabled={updatingStatusIds.has(route.id)}
+                      onValueChange={(value) => {
+                        if (route.id) updateRouteStatus(route.id, value)
+                      }}
                     >
-                      <Trash2 className="h-5 w-5 mr-3" />
+                      <SelectTrigger className={`h-8 text-xs w-[120px] flex-shrink-0 ${updatingStatusIds.has(route.id) ? "opacity-50 cursor-not-allowed" : ""}`}>
+                        <div className="flex items-center gap-2">
+                          {updatingStatusIds.has(route.id) ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <div className={`h-2 w-2 rounded-full ${
+                              route.status === 'active' ? 'bg-green-500' :
+                              route.status === 'maintenance' ? 'bg-amber-500' : 'bg-gray-400'
+                            }`} />
+                          )}
+                          <SelectValue />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-green-500" />
+                            {t("active")}
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="inactive">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-gray-400" />
+                            {t("inactive")}
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="maintenance">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-amber-500" />
+                            {t("route_maintenance")}
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={(e) => handleDeleteRoute(route.id, e)}
+                      className="bg-red-600 hover:bg-red-700 text-white flex-shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
                       Delete
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
+                </div>
+              </CardContent>
+            </Card>
           ))}
-        </motion.div>
+        </div>
       )}
 
 
@@ -737,37 +896,37 @@ export default function RouteMonitoring() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-neutral-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-neutral-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-[2.5rem] max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
+              className="bg-card text-card-foreground border border-border rounded-[2.5rem] max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
             >
               <div className="p-10 overflow-y-auto">
                 {/* Header */}
                 <div className="flex justify-between items-start mb-6">
                   <div className="space-y-2">
                     <div className="flex items-center gap-4">
-                      <h2 className="text-4xl font-bold tracking-tight text-neutral-900">{selectedRoute.name}{selectedRoute.busNumber ? ` - ${selectedRoute.busNumber}` : ""}</h2>
-                      <p className="text-blue-600 font-semibold text-lg">{selectedRoute.startPoint} to {selectedRoute.endPoint}</p>
+                      <h2 className="text-4xl font-bold tracking-tight text-foreground">{selectedRoute.name}{selectedRoute.busNumber ? ` - ${selectedRoute.busNumber}` : ""}</h2>
+                      <p className="text-blue-600 dark:text-blue-400 font-semibold text-lg">{selectedRoute.startPoint} to {selectedRoute.endPoint}</p>
                       <Badge className="bg-emerald-500 text-white font-bold px-4 py-1.5 uppercase tracking-widest text-[11px] rounded-full">Active</Badge>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="rounded-2xl h-14 w-14 hover:bg-neutral-100" onClick={() => { setSelectedRoute(null); setModalTab("map"); setSelectedHazardInfo(null); }}>
-                    <span className="text-2xl font-bold text-neutral-400 hover:text-neutral-900">✕</span>
+                  <Button variant="ghost" size="icon" className="rounded-2xl h-14 w-14 hover:bg-muted" onClick={() => { setSelectedRoute(null); setModalTab("map"); setSelectedHazardInfo(null); }}>
+                    <span className="text-2xl font-bold text-muted-foreground hover:text-foreground">✕</span>
                   </Button>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-2 bg-neutral-100 p-1 rounded-2xl mb-6 w-fit">
+                <div className="flex gap-2 bg-muted p-1 rounded-2xl mb-6 w-fit">
                   <button
                     onClick={() => setModalTab("map")}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
                       modalTab === "map"
-                        ? "bg-white text-blue-600 shadow-sm"
-                        : "text-neutral-500 hover:text-neutral-800"
+                        ? "bg-background text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <MapIcon className="h-4 w-4" />
@@ -777,8 +936,8 @@ export default function RouteMonitoring() {
                     onClick={() => { setModalTab("hazards"); setSelectedHazardInfo(null); }}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
                       modalTab === "hazards"
-                        ? "bg-white text-amber-600 shadow-sm"
-                        : "text-neutral-500 hover:text-neutral-800"
+                        ? "bg-background text-amber-600 dark:text-amber-400 shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <AlertTriangle className="h-4 w-4" />
@@ -793,7 +952,7 @@ export default function RouteMonitoring() {
 
                 {/* Live Map Tab */}
                 {modalTab === "map" && (
-                  <div className="w-full h-[500px] rounded-2xl overflow-hidden border border-neutral-200 bg-neutral-100 relative shadow-inner">
+                  <div className="w-full h-[500px] rounded-2xl overflow-hidden border border-border bg-muted relative shadow-inner">
                     <iframe 
                       width="100%" 
                       height="100%" 
@@ -809,101 +968,22 @@ export default function RouteMonitoring() {
                 {modalTab === "hazards" && (
                   <div className="space-y-4">
                     {/* Hazard map */}
-                    <div className="w-full h-[400px] rounded-2xl overflow-hidden border border-neutral-200 bg-neutral-100 shadow-inner relative">
-                      {!isMapLoaded || hazardsLoading ? (
+                    <div className="w-full h-[400px] rounded-2xl overflow-hidden border border-border bg-muted shadow-inner relative">
+                      {!leafletLoaded || hazardsLoading ? (
                         <div className="h-full flex flex-col items-center justify-center gap-3">
                           <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
-                          <p className="text-sm font-bold text-neutral-400">Loading hazard data...</p>
+                          <p className="text-sm font-bold text-muted-foreground">Loading hazard data...</p>
                         </div>
                       ) : routeHazards.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center gap-3 bg-amber-50">
-                          <div className="p-5 bg-white rounded-full shadow-sm">
-                            <AlertTriangle className="h-12 w-12 text-amber-200" />
+                        <div className="h-full flex flex-col items-center justify-center gap-3 bg-amber-50 dark:bg-amber-950/20">
+                          <div className="p-5 bg-card rounded-full shadow-sm border border-border">
+                            <AlertTriangle className="h-12 w-12 text-amber-500" />
                           </div>
-                          <p className="font-bold text-neutral-600 text-lg">No Hazard Zones Yet</p>
-                          <p className="text-sm text-neutral-400 font-medium">Go to Hazard Monitoring to mark hazards on the map.</p>
+                          <p className="font-bold text-foreground text-lg">No Hazard Zones Yet</p>
+                          <p className="text-sm text-muted-foreground font-medium">Go to Hazard Monitoring to mark hazards on the map.</p>
                         </div>
                       ) : (
-                        <GoogleMap
-                          mapContainerStyle={{ width: "100%", height: "100%" }}
-                          center={hazardMapCenter}
-                          zoom={8}
-                          onLoad={onHazardMapLoad}
-                          options={{
-                            disableDefaultUI: false,
-                            zoomControl: true,
-                            mapTypeControl: true,
-                            mapTypeControlOptions: {
-                              style: 2, // DROPDOWN_MENU
-                              position: 3, // TOP_RIGHT
-                            },
-                            streetViewControl: false,
-                            fullscreenControl: true,
-                            gestureHandling: "cooperative",
-                            styles: [
-                              { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-                              { featureType: "transit", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-                            ],
-                          }}
-                        >
-                          {routeHazards.map((hazard, i) => (
-                            <div key={hazard.id ?? i}>
-                              <Marker
-                                position={{ lat: hazard.latitude, lng: hazard.longitude }}
-                                title={hazard.name}
-                                icon={{
-                                  url: hazard.type === "accident"
-                                    ? "https://maps.google.com/mapfiles/ms/icons/red-dot.png"
-                                    : hazard.type === "school"
-                                    ? "https://maps.google.com/mapfiles/ms/icons/yellow-dot.png"
-                                    : hazard.type === "speed"
-                                    ? "https://maps.google.com/mapfiles/ms/icons/orange-dot.png"
-                                    : "https://maps.google.com/mapfiles/ms/icons/orange-dot.png",
-                                  scaledSize: new window.google.maps.Size(40, 40),
-                                }}
-                                onClick={() => panToHazard(hazard)}
-                                animation={selectedHazardInfo?.id === hazard.id ? window.google.maps.Animation.BOUNCE : undefined}
-                              />
-                              <Circle
-                                center={{ lat: hazard.latitude, lng: hazard.longitude }}
-                                radius={hazard.radius}
-                                options={{
-                                  fillColor: hazard.type === "accident" ? "#ef4444"
-                                    : hazard.type === "school" ? "#eab308"
-                                    : "#f59e0b",
-                                  fillOpacity: 0.15,
-                                  strokeColor: hazard.type === "accident" ? "#dc2626"
-                                    : hazard.type === "school" ? "#ca8a04"
-                                    : "#d97706",
-                                  strokeWeight: 2.5,
-                                  strokeOpacity: 0.9,
-                                }}
-                              />
-                            </div>
-                          ))}
-                          {selectedHazardInfo && (
-                            <InfoWindow
-                              position={{ lat: selectedHazardInfo.latitude, lng: selectedHazardInfo.longitude }}
-                              onCloseClick={() => setSelectedHazardInfo(null)}
-                              options={{ pixelOffset: new window.google.maps.Size(0, -40) }}
-                            >
-                              <div style={{ padding: "8px", minWidth: "180px", fontFamily: "system-ui" }}>
-                                <p style={{ fontWeight: 900, fontSize: "14px", marginBottom: "4px", color: "#111" }}>{selectedHazardInfo.name}</p>
-                                <p style={{ fontSize: "11px", color: "#666", textTransform: "capitalize", marginBottom: "6px" }}>
-                                  {selectedHazardInfo.type === "other" && selectedHazardInfo.customType
-                                    ? selectedHazardInfo.customType
-                                    : selectedHazardInfo.type}
-                                </p>
-                                {selectedHazardInfo.location && (
-                                  <p style={{ fontSize: "11px", color: "#888", marginBottom: "6px" }}>📍 {selectedHazardInfo.location}</p>
-                                )}
-                                <div style={{ display: "inline-block", background: "#fef3c7", color: "#92400e", fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "9999px" }}>
-                                  {selectedHazardInfo.radius}m radius
-                                </div>
-                              </div>
-                            </InfoWindow>
-                          )}
-                        </GoogleMap>
+                        <div ref={mapContainerRef} className="w-full h-full" style={{ zIndex: 0 }} />
                       )}
                     </div>
 
@@ -980,25 +1060,25 @@ export default function RouteMonitoring() {
       )}
 
       <AlertDialog open={!!routeToDelete} onOpenChange={(open) => !open && setRouteToDelete(null)}>
-        <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl p-8">
+        <AlertDialogContent className="rounded-[2rem] border border-border shadow-2xl p-8 bg-card text-card-foreground">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-2xl font-bold text-neutral-900 flex items-center gap-3">
-              <div className="p-2 bg-rose-50 text-rose-500 rounded-xl">
+            <AlertDialogTitle className="text-2xl font-bold text-foreground flex items-center gap-3">
+              <div className="p-2 bg-rose-50 dark:bg-rose-950/20 text-rose-500 rounded-xl">
                 <Trash2 className="h-6 w-6" />
               </div>
               Delete Route?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-neutral-500 text-base font-medium pt-2">
+            <AlertDialogDescription className="text-muted-foreground text-base font-medium pt-2">
               Are you sure you want to delete this route? This action cannot be undone and will remove all associated transit data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="pt-6 gap-3">
-            <AlertDialogCancel className="rounded-xl font-bold h-12 px-6 border-neutral-200 text-neutral-600 hover:bg-neutral-50">
+            <AlertDialogCancel className="rounded-xl font-bold h-12 px-6 border-border text-muted-foreground hover:bg-muted">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={confirmDelete}
-              className="rounded-xl font-bold h-12 px-8 bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-200"
+              className="rounded-xl font-bold h-12 px-8 bg-rose-500 hover:bg-rose-600 text-white shadow-lg dark:shadow-none"
             >
               Delete Permanently
             </AlertDialogAction>

@@ -7,7 +7,6 @@ export interface Driver {
   phone: string
   email: string
   busNumber?: string
-  route?: string
   status: DriverStatus
   alertCount: number
   lastAlert?: string
@@ -24,7 +23,6 @@ export interface CreateDriverInput {
   phone: string
   email: string
   busNumber?: string
-  route?: string
   address?: string
   experience?: string
 }
@@ -35,7 +33,6 @@ export interface UpdateDriverInput {
   phone?: string
   email?: string
   busNumber?: string
-  route?: string
   status?: DriverStatus
   address?: string
   experience?: string
@@ -48,4 +45,3 @@ export interface DriverFilters {
   search?: string
   limit?: number
 }
-

@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { motion } from "framer-motion"
 import {
   Card,
   CardContent,
@@ -12,68 +11,50 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Download,
   FileText,
-  TrendingUp,
   Shield,
   Activity,
   AlertTriangle,
-  Calendar,
-  RefreshCw,
-  Printer,
+  Clock,
   BarChart3,
   PieChart,
   LineChart,
   Bus,
   Users,
-  Clock,
   Loader2,
   FileDown,
 } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
 import { generatePDFReport } from "@/lib/pdf-generator"
 import { useLiveAlerts, isToday, isWithinLast24Hours, isWithinLast30Days } from "@/hooks/use-live-alerts"
-import { calculateSafetyScore, getRiskLevelDetails } from "@/lib/safety-score"
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1 },
-  },
-}
-
-const itemVariants = {
-  hidden: { y: 20, opacity: 0 },
-  visible: {
-    y: 0,
-    opacity: 1,
-    transition: { type: "spring" as const, stiffness: 100 },
-  },
-}
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts"
 
 export default function ReportsPage() {
   const { t } = useLanguage()
   const { alerts: liveAlerts, historyAlerts, isLoading: isLoadingAlerts } = useLiveAlerts()
 
-  // State
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState<string | null>(null)
   const [drivers, setDrivers] = useState<any[]>([])
   const [fleet, setFleet] = useState<any[]>([])
   const [routes, setRoutes] = useState<any[]>([])
-  const [stats, setStats] = useState<any>(null)
   const [feedbacks, setFeedbacks] = useState<any[]>([])
-  
-  // Report Config State
+
   const [reportEntity, setReportEntity] = useState<"fleet" | "driver" | "bus">("fleet")
   const [selectedEntityId, setSelectedEntityId] = useState<string>("all")
   const [timePeriod, setTimePeriod] = useState<"daily" | "weekly" | "monthly" | "lifetime">("daily")
 
-  // Fetch Initial Data
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -84,7 +65,6 @@ export default function ReportsPage() {
           fetch("/api/routes", { cache: "no-store" }),
           fetch("/api/feedback", { cache: "no-store" })
         ])
-        
         if (driversRes.ok) setDrivers(await driversRes.json())
         if (fleetRes.ok) setFleet(await fleetRes.json())
         if (routesRes.ok) setRoutes(await routesRes.json())
@@ -98,28 +78,15 @@ export default function ReportsPage() {
     fetchData()
   }, [])
 
-  // Derived Dynamic Data
   const data = useMemo(() => {
-    // Combine all alerts and remove duplicates based on alert ID
     const combinedAlerts = [...liveAlerts, ...historyAlerts]
     const uniqueAlerts = combinedAlerts.filter((alert, index, self) =>
       index === self.findIndex((a) => a.id === alert.id)
     )
-
-    // Today's alerts (scoped to calendar today or last 24 hours)
     const todayAlertsList = uniqueAlerts.filter(
       (alert) => isToday(alert.timestamp) || isWithinLast24Hours(alert.timestamp)
     )
-
-    // Safety score is calculated based on ALL alerts from the last 30 days
-    const alertsLast30Days = uniqueAlerts.filter((alert) => isWithinLast30Days(alert.timestamp))
-    const safetyScore = calculateSafetyScore(alertsLast30Days)
-    const riskDetails = getRiskLevelDetails(safetyScore)
-    
     const activeVehicles = fleet.filter(v => v.status === "active").length
-    const fleetActivity = fleet.length > 0 ? Math.round((activeVehicles / fleet.length) * 100) : 0
-    
-    // Group alerts by type for PDF
     const alertTypesCounts: Record<string, number> = {}
     todayAlertsList.forEach(a => {
       alertTypesCounts[a.type] = (alertTypesCounts[a.type] || 0) + 1
@@ -127,100 +94,121 @@ export default function ReportsPage() {
     const alertSummary = Object.entries(alertTypesCounts).map(([type, count]) => ({
       type, count, high: Math.round(count * 0.4), medium: Math.round(count * 0.4), low: Math.round(count * 0.2), avgResponse: "1m"
     }))
+    const drowsinessCount = todayAlertsList.filter(a => a.type === 'drowsiness' || a.type.toLowerCase().includes('drowsi') || a.tag?.toLowerCase().includes('yawn')).length
+    const phoneCount = todayAlertsList.filter(a => a.type === 'phone_usage' || a.type.toLowerCase().includes('phone')).length
+    const distractionCount = todayAlertsList.filter(a => a.type === 'distraction' || a.type.toLowerCase().includes('distraction')).length
+    const smokingCount = todayAlertsList.filter(a => a.type === 'smoking' || a.type.toLowerCase().includes('smoke')).length
+    const drinkingCount = todayAlertsList.filter(a => a.type === 'drinking' || a.type.toLowerCase().includes('drink')).length
+    const totalObjectDetection = phoneCount + smokingCount + drinkingCount
 
-    const alertDensity = fleet.length > 0 ? (todayAlertsList.length / fleet.length).toFixed(2) : "0"
+    const chartData = [
+      { name: "Drowsiness", count: drowsinessCount, fill: "#EF4444" },
+      { name: "Distraction", count: distractionCount, fill: "#F59E0B" },
+      { name: "Object Detection", count: totalObjectDetection, fill: "#2563EB" },
+      { name: "  • Mobile Phone", count: phoneCount, fill: "#3B82F6" },
+      { name: "  • Smoking", count: smokingCount, fill: "#475569" },
+      { name: "  • Drinking", count: drinkingCount, fill: "#6366F1" },
+    ]
 
+    const alertDensity = activeVehicles > 0 ? (todayAlertsList.length / activeVehicles).toFixed(2) : "0"
     const totalDrivers = drivers.length || 1
     const activeDrivers = drivers.filter(d => d.status === "on_duty").length
-
     return {
       uniqueTodayAlerts: todayAlertsList,
-      safetyScore,
-      riskLevel: riskDetails.level,
-      fleetActivity,
       alertSummary,
       alertDensity,
       activeDrivers,
-      totalDrivers
+      totalDrivers,
+      activeVehicles,
+      totalVehicles: fleet.length,
+      chartData,
     }
   }, [liveAlerts, historyAlerts, fleet, drivers])
 
-  // Report Generation Handler
   const handleDownload = async (type: string, title: string) => {
     setIsGenerating(type)
     try {
-      // 1. Filter Alerts based on timePeriod
       const now = Date.now()
       const timeMs = timePeriod === "daily" ? 24*60*60*1000 : timePeriod === "weekly" ? 7*24*60*60*1000 : timePeriod === "monthly" ? 30*24*60*60*1000 : Infinity
       const combinedAlerts = [...liveAlerts, ...historyAlerts].filter((alert, index, self) => index === self.findIndex((a) => a.id === alert.id))
-      
       let filteredAlerts = combinedAlerts.filter(a => {
         const alertTime = new Date(a.timestamp || Date.now()).getTime()
         return (now - alertTime) <= timeMs
       })
-
-      // 2. Filter by Entity
       let entityName = "Entire Fleet"
       if (reportEntity === "driver" && selectedEntityId !== "all") {
         const driver = drivers.find(d => d.id === selectedEntityId || d.licenseNumber === selectedEntityId)
-        filteredAlerts = filteredAlerts.filter(a => a.driverId === selectedEntityId || a.driverName === driver?.name)
+        filteredAlerts = filteredAlerts.filter(a => 
+          (a.driverId && (a.driverId === selectedEntityId || (driver && a.driverId === driver.id))) || 
+          (a.driverName && driver && a.driverName.toLowerCase().trim() === driver.name.toLowerCase().trim())
+        )
         entityName = `Driver: ${driver?.name || selectedEntityId}`
       } else if (reportEntity === "bus" && selectedEntityId !== "all") {
-        filteredAlerts = filteredAlerts.filter(a => a.busNumber === selectedEntityId || a.deviceId === selectedEntityId || a.number_plate === selectedEntityId)
-        entityName = `Bus: ${selectedEntityId}`
+        const vehicle = fleet.find(v => v.id === selectedEntityId || v.busNumberPlate === selectedEntityId || v.busNumber === selectedEntityId)
+        filteredAlerts = filteredAlerts.filter(a => 
+          a.busNumber === selectedEntityId || 
+          a.deviceId === selectedEntityId || 
+          a.number_plate === selectedEntityId ||
+          (vehicle && (
+            a.busNumber === vehicle.busNumber ||
+            a.busNumber === vehicle.busNumberPlate ||
+            a.number_plate === vehicle.busNumberPlate ||
+            a.deviceId === vehicle.deviceId ||
+            a.deviceId === vehicle.id
+          ))
+        )
+        entityName = `Bus: ${vehicle?.busNumberPlate || vehicle?.busNumber || selectedEntityId}`
       }
-
-      // 3. Calculate metrics
-      const drowsinessCount = filteredAlerts.filter(a => a.type.toLowerCase().includes('drowsi')).length
+      const drowsinessCount = filteredAlerts.filter(a => a.type === 'drowsiness' || a.type.toLowerCase().includes('drowsi') || a.tag?.toLowerCase().includes('yawn')).length
       const yawnCount = filteredAlerts.filter(a => a.tag?.toLowerCase().includes('yawn')).length
-      const phoneCount = filteredAlerts.filter(a => a.type.toLowerCase().includes('phone')).length
-      const distractionCount = filteredAlerts.filter(a => a.type.toLowerCase().includes('distraction')).length
-      
+      const phoneCount = filteredAlerts.filter(a => a.type === 'phone_usage' || a.type.toLowerCase().includes('phone')).length
+      const distractionCount = filteredAlerts.filter(a => a.type === 'distraction' || a.type.toLowerCase().includes('distraction')).length
+      const smokingCount = filteredAlerts.filter(a => a.type === 'smoking' || a.type.toLowerCase().includes('smoke')).length
+      const drinkingCount = filteredAlerts.filter(a => a.type === 'drinking' || a.type.toLowerCase().includes('drink')).length
       const alertTypesCounts: Record<string, number> = {}
-      filteredAlerts.forEach(a => {
-        alertTypesCounts[a.type] = (alertTypesCounts[a.type] || 0) + 1
-      })
+      filteredAlerts.forEach(a => { alertTypesCounts[a.type] = (alertTypesCounts[a.type] || 0) + 1 })
       const dynamicAlertSummary = Object.entries(alertTypesCounts).map(([type, count]) => ({
-        type,
-        count,
-        high: Math.round(count * 0.4),
-        medium: Math.round(count * 0.4),
-        low: Math.round(count * 0.2),
-        avgResponse: "1m"
+        type, count, high: Math.round(count * 0.4), medium: Math.round(count * 0.4), low: Math.round(count * 0.2), avgResponse: "1m"
       }))
-
-      const safetyScore = calculateSafetyScore(filteredAlerts)
-      
-      // 4. Filter Feedbacks
       let filteredFeedbacks = feedbacks.filter(f => {
-        if (!f.timestamp && !f.createdAt) return false;
-        const feedbackTime = new Date((f.timestamp || f.createdAt) as string).getTime();
-        return (now - feedbackTime) <= timeMs;
-      });
-      
+        if (!f.timestamp && !f.createdAt) return false
+        const feedbackTime = new Date((f.timestamp || f.createdAt) as string).getTime()
+        return (now - feedbackTime) <= timeMs
+      })
       if (reportEntity === "driver" && selectedEntityId !== "all") {
         const driver = drivers.find(d => d.id === selectedEntityId || d.licenseNumber === selectedEntityId)
-        filteredFeedbacks = filteredFeedbacks.filter(f => f.driverId === selectedEntityId || f.driverName === driver?.name)
+        filteredFeedbacks = filteredFeedbacks.filter(f => 
+          (f.driverId && (f.driverId === selectedEntityId || (driver && f.driverId === driver.id))) || 
+          (f.driverName && driver && f.driverName.toLowerCase().trim() === driver.name.toLowerCase().trim())
+        )
       } else if (reportEntity === "bus" && selectedEntityId !== "all") {
-        filteredFeedbacks = filteredFeedbacks.filter(f => f.busNumber === selectedEntityId || f.vehicleId === selectedEntityId)
+        const vehicle = fleet.find(v => v.id === selectedEntityId || v.busNumberPlate === selectedEntityId || v.busNumber === selectedEntityId)
+        filteredFeedbacks = filteredFeedbacks.filter(f => 
+          f.busNumber === selectedEntityId || 
+          f.vehicleId === selectedEntityId ||
+          (vehicle && (
+            f.busNumber === vehicle.busNumber ||
+            f.busNumber === vehicle.busNumberPlate ||
+            f.vehicleId === vehicle.busNumberPlate ||
+            f.vehicleId === vehicle.id
+          ))
+        )
       }
-      const getRatingValue = (f: any) => typeof f.rating === 'object' ? (f.rating?.overall || 5) : (Number(f.rating) || 5);
+      const getRatingValue = (f: any) => typeof f.rating === 'object' ? (f.rating?.overall || 5) : (Number(f.rating) || 5)
       const avgFeedbackRating = filteredFeedbacks.length > 0 ? (filteredFeedbacks.reduce((sum, f) => sum + getRatingValue(f), 0) / filteredFeedbacks.length).toFixed(1) : "N/A"
-
-      let reportData: any = {
-        entityName,
-        timePeriod: timePeriod.toUpperCase(),
-        safetyScore,
-        counts: {
-          total: filteredAlerts.length,
-          drowsiness: drowsinessCount,
-          yawn: yawnCount,
-          phone: phoneCount,
-          distraction: distractionCount
+      const reportData: any = {
+        entityName, timePeriod: timePeriod.toUpperCase(),
+        counts: { 
+          total: filteredAlerts.length, 
+          drowsiness: drowsinessCount, 
+          yawn: yawnCount, 
+          phone: phoneCount, 
+          distraction: distractionCount,
+          smoking: smokingCount,
+          drinking: drinkingCount
         },
         feedbacks: {
-          total: filteredFeedbacks.length,
-          averageRating: avgFeedbackRating,
+          total: filteredFeedbacks.length, averageRating: avgFeedbackRating,
           recent: filteredFeedbacks.slice(0, 10).map(f => ({
             rating: typeof f.rating === 'object' ? (f.rating?.overall || 5) : (f.rating || 5),
             comment: f.description || f.comment || f.message || "No comment",
@@ -230,39 +218,84 @@ export default function ReportsPage() {
             date: (f.createdAt || f.timestamp) ? new Date(f.createdAt || f.timestamp).toLocaleDateString() : "Recent"
           }))
         },
-        summary: {
-          totalAlerts: filteredAlerts.length,
-          activeDrivers: data.activeDrivers,
-          systemUptime: 100,
-        },
-        alerts: dynamicAlertSummary.length > 0 ? dynamicAlertSummary : [
-          { type: "No Data", count: 0, high: 0, medium: 0, low: 0, avgResponse: "0m" }
-        ],
-        drivers: (Array.isArray(drivers) ? drivers : []).map(d => ({
-          name: d.name,
-          license: d.licenseNumber,
-          bus: d.busNumber || 'N/A',
-          route: d.route || 'Unassigned',
-          alerts: d.alertCount || 0,
-          status: d.status
+        summary: { totalAlerts: filteredAlerts.length, activeDrivers: data.activeDrivers, systemUptime: 100 },
+        alerts: dynamicAlertSummary.length > 0 ? dynamicAlertSummary : [{ type: "No Data", count: 0, high: 0, medium: 0, low: 0, avgResponse: "0m" }],
+        alertDetails: filteredAlerts.map(a => ({
+          type: a.type || "Unknown",
+          driverName: a.driverName || "Unknown Driver",
+          busNumber: a.busNumber || a.number_plate || "N/A",
+          timestamp: a.timestamp ? new Date(a.timestamp).toLocaleString() : "N/A",
+          severity: a.severity || "medium",
+          description: a.description || a.tag || "",
+          evidence: a.evidence || null,
         })),
-        routes: (Array.isArray(routes) ? routes : []).map(r => ({
-          name: r.name,
-          buses: r.activeVehicles,
-          drivers: r.activeVehicles,
-          distance: `${r.distance}km`,
-          riskAreas: r.safetyIncidents,
-          efficiency: r.onTimePerformance
-        })),
-        compliance: {
-          driverLicenseValidity: 100,
-          vehicleInspections: 100,
-          safetyTraining: Math.round(data.safetyScore),
-          emergencyProtocols: 100,
-          dataReporting: 100
-        }
-      }
+        drivers: (Array.isArray(drivers) ? drivers : [])
+          .filter(d => {
+            if (reportEntity === "driver" && selectedEntityId !== "all") {
+              return d.id === selectedEntityId || d.licenseNumber === selectedEntityId
+            }
+            return true
+          })
+          .map(d => {
+            const driverAlerts = filteredAlerts.filter(a => 
+              (a.driverId && a.driverId === d.id) || 
+              (a.driverName && a.driverName.toLowerCase().trim() === d.name.toLowerCase().trim())
+            )
+            return {
+              name: d.name,
+              license: d.licenseNumber,
+              bus: d.busNumber || 'N/A',
+              route: d.route || 'Unassigned',
+              alerts: driverAlerts.length,
+              status: d.status
+            }
+          }),
+        routes: (Array.isArray(routes) ? routes : []).map(r => ({ name: r.name, buses: r.activeVehicles, drivers: r.activeVehicles, distance: `${r.distance}km`, riskAreas: r.safetyIncidents, efficiency: r.onTimePerformance })),
+        buses: (Array.isArray(fleet) ? fleet : []).map(v => {
+          // Prepare normalized keys for matching
+          const vPlate = (v.busNumberPlate || v.busNumber || v.id || '').toLowerCase().trim()
+          const vDeviceId = (v.deviceId || '').toLowerCase().trim()
+          const vDriverId = (v.driverId || '').trim()
+          const vDriverName = (v.driverName || '').toLowerCase().trim()
 
+          // Use all combined alerts (live + history) for bus counts, applying time filter
+          const busAlerts = combinedAlerts.filter(a => {
+            const alertTime = new Date(a.timestamp || Date.now()).getTime()
+            if ((now - alertTime) > timeMs) return false
+
+            const aPlate = (a.number_plate || '').toLowerCase().trim()
+            const aBusNum = (a.busNumber || '').toLowerCase().trim()
+            const aDeviceId = (a.deviceId || '').toLowerCase().trim()
+            const aDriverId = (a.driverId || '').trim()
+            const aDriverName = (a.driverName || '').toLowerCase().trim()
+
+            // Match by bus plate (most reliable)
+            if (vPlate && (aBusNum === vPlate || aPlate === vPlate)) return true
+            // Match by device ID
+            if (vDeviceId && aDeviceId && aDeviceId === vDeviceId) return true
+            // Match by assigned driver ID
+            if (vDriverId && aDriverId && aDriverId === vDriverId) return true
+            // Match by assigned driver name (case-insensitive)
+            if (vDriverName && aDriverName && aDriverName === vDriverName) return true
+
+            return false
+          })
+          return {
+            busNumberPlate: v.busNumberPlate || v.busNumber || v.id || 'N/A',
+            model: v.model || 'N/A',
+            driver: v.driverName || v.driverId || 'Unassigned',
+            route: v.route || 'Unassigned',
+            alerts: busAlerts.length,
+            status: v.status || 'inactive'
+          }
+        }),
+        fleetSummary: {
+          total: fleet.length,
+          active: fleet.filter(v => v.status === 'active').length,
+          totalAlerts: filteredAlerts.length
+        },
+        compliance: { driverLicenseValidity: 100, vehicleInspections: 100, safetyTraining: 100, emergencyProtocols: 100, dataReporting: 100 }
+      }
       await generatePDFReport({
         type: type === 'custom' ? 'custom-dynamic' : type,
         title: type === 'custom' ? `${entityName} - ${timePeriod.charAt(0).toUpperCase() + timePeriod.slice(1)} Report` : title,
@@ -276,392 +309,289 @@ export default function ReportsPage() {
     }
   }
 
-  const initialLoading = isLoading || isLoadingAlerts
-
-  if (initialLoading) {
+  if (isLoading || isLoadingAlerts) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />
-        <p className="text-slate-500 font-medium animate-pulse">{t("loading_activities") || "Preparing analytics dashboard..."}</p>
+        <Loader2 className="h-12 w-12 text-primary animate-spin" />
+        <p className="text-muted-foreground font-medium">{t("loading_activities") || "Preparing analytics dashboard..."}</p>
       </div>
     )
   }
 
+  const quickReports = [
+    {
+      id: "driver-performance",
+      title: t("driver_performance_report") || "Driver Performance Report",
+      desc: t("driver_performance_desc") || "Individual driver safety scores and incident history with performance charts",
+      icon: Users,
+      color: "text-blue-500",
+      bg: "bg-blue-50 dark:bg-blue-950/30",
+    },
+    {
+      id: "fleet-analytics",
+      title: t("fleet_analytics_report") || "Fleet Analytics Report",
+      desc: t("fleet_analytics_desc") || "Vehicle-wise safety metrics and maintenance alerts with route analysis charts",
+      icon: Bus,
+      color: "text-emerald-500",
+      bg: "bg-emerald-50 dark:bg-emerald-950/30",
+    },
+    {
+      id: "daily-summary",
+      title: t("todays_summary") || "Safety Summary Report",
+      desc: t("daily_summary_desc") || "Full breakdown of safety incidents and system alerts for the selected period",
+      icon: Shield,
+      color: "text-rose-500",
+      bg: "bg-rose-50 dark:bg-rose-950/30",
+    },
+  ]
+
   return (
-    <motion.div 
-      className="space-y-8 pb-12"
-      initial="hidden"
-      animate="visible"
-      variants={containerVariants}
-    >
-      {/* Header Section */}
-      <motion.div variants={itemVariants} className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+    <div className="container mx-auto px-4 py-8 bg-background text-foreground min-h-screen">
+
+      {/* Page Header */}
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Reports & Analytics</h1>
-          <p className="text-muted-foreground mt-2">Generate comprehensive reports with live visual charts and fleet analytics.</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Reports &amp; Analytics</h1>
+          <p className="text-muted-foreground">Generate comprehensive reports with live fleet analytics.</p>
         </div>
+      </div>
 
+      {/* Stats Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Today&apos;s Alerts</CardTitle>
+            <Activity className="h-4 w-4 text-rose-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-rose-500">{data.uniqueTodayAlerts.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Alert Density</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-muted-foreground">{data.alertDensity}</div>
+          </CardContent>
+        </Card>
+      </div>
 
-      </motion.div>
+      {/* Report Configuration + Quick Reports */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
 
-      {/* Analytics Overview Cards */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { label: "Overall Safety Score", value: `${data.safetyScore.toFixed(1)}%`, icon: Shield, color: "text-emerald-600", bg: "bg-emerald-50", trend: "Live" },
-          { label: "Risk Level", value: data.riskLevel, icon: AlertTriangle, color: "text-amber-600", bg: "bg-amber-50", trend: "Live" },
-          { label: "Alert Density", value: data.alertDensity, icon: Activity, color: "text-rose-600", bg: "bg-rose-50", trend: "Live" },
-        ].map((stat, i) => (
-          <Card key={i} className="border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 group">
-            <CardContent className="p-4">
-              <div className="flex justify-between items-start mb-3">
-                <div className={`${stat.bg} p-2.5 rounded-xl group-hover:scale-105 transition-transform duration-300`}>
-                  <stat.icon className={`h-5 w-5 ${stat.color}`} />
+        {/* Config Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("report_config") || "Report Configuration"}</CardTitle>
+            <CardDescription>{t("report_params") || "Customize your report parameters"}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">{t("report_format") || "Report Format"}</label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button variant="outline" className="bg-primary/10 border-primary text-primary text-xs">PDF</Button>
+                <Button variant="outline" className="opacity-40 cursor-not-allowed text-xs" disabled>XLS</Button>
+                <Button variant="outline" className="opacity-40 cursor-not-allowed text-xs" disabled>CSV</Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Target Entity</label>
+              <Select value={reportEntity} onValueChange={(val) => { setReportEntity(val as any); setSelectedEntityId("all") }}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select target entity..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fleet">Entire Fleet</SelectItem>
+                  <SelectItem value="driver">Specific Driver</SelectItem>
+                  <SelectItem value="bus">Specific Bus</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {reportEntity === "driver" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Select Driver</label>
+                <Select value={selectedEntityId} onValueChange={setSelectedEntityId}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select a driver..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Drivers</SelectItem>
+                    {(Array.isArray(drivers) ? drivers : []).map(d => (
+                      <SelectItem key={d.id || d.licenseNumber} value={d.id || d.licenseNumber}>
+                        {d.name} ({d.licenseNumber})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {reportEntity === "bus" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Select Bus</label>
+                <Select value={selectedEntityId} onValueChange={setSelectedEntityId}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select a bus..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Buses</SelectItem>
+                    {(Array.isArray(fleet) ? fleet : []).map(f => (
+                      <SelectItem key={f.id || f.busNumber} value={f.id || f.busNumber}>
+                        {f.busNumberPlate || f.busNumber || f.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">{t("time_period") || "Time Period"}</label>
+              <Select value={timePeriod} onValueChange={(val) => setTimePeriod(val as any)}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Select time period..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily (Last 24 Hours)</SelectItem>
+                  <SelectItem value="weekly">Weekly (Last 7 Days)</SelectItem>
+                  <SelectItem value="monthly">Monthly (Last 30 Days)</SelectItem>
+                  <SelectItem value="lifetime">Lifetime (All Time)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={() => handleDownload('custom', 'Custom Fleet Analysis')}
+              disabled={isGenerating !== null}
+            >
+              {isGenerating === 'custom' ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <FileDown className="h-4 w-4 mr-2" />
+              )}
+              {t("generate_custom_report") || "Generate Custom Report"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Quick Reports Grid */}
+        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {quickReports.map((report) => (
+            <Card key={report.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex justify-between items-start mb-2">
+                  <div className={`${report.bg} p-3 rounded-lg`}>
+                    <report.icon className={`h-5 w-5 ${report.color}`} />
+                  </div>
+                  <Badge variant="secondary">Dynamic</Badge>
                 </div>
-                <Badge className="bg-emerald-100 text-emerald-700 border-none rounded-lg text-xs">
-                  {stat.trend}
-                </Badge>
-              </div>
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
-                <h3 className="text-2xl font-bold text-foreground">{stat.value}</h3>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </motion.div>
-
-      {/* Main Content Tabs */}
-      <Tabs defaultValue="reports" className="space-y-8">
-        <TabsList className="bg-white/50 backdrop-blur-md p-1.5 rounded-2xl border-2 shadow-sm inline-flex">
-          <TabsTrigger value="reports" className="rounded-xl px-8 py-2.5 data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
-            <FileText className="h-4 w-4 mr-2" />
-            {t("generate_reports") || "Reports"}
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="rounded-xl px-8 py-2.5 data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
-            <BarChart3 className="h-4 w-4 mr-2" />
-            {t("performance_analytics") || "Analytics"}
-          </TabsTrigger>
-          <TabsTrigger value="insights" className="rounded-xl px-8 py-2.5 data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
-            <TrendingUp className="h-4 w-4 mr-2" />
-            {t("ai_insights") || "Insights"}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="reports" className="space-y-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Report Selection Sidebar */}
-            <div className="lg:col-span-1 space-y-6">
-              <Card className="border-2 rounded-3xl shadow-xl bg-white/70 backdrop-blur-xl">
-                <CardHeader>
-                  <CardTitle className="text-xl">{t("report_config") || "Report Configuration"}</CardTitle>
-                  <CardDescription>{t("report_params") || "Customize your report parameters"}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-4">
-                    <label className="text-sm font-bold text-slate-700">{t("report_format") || "Format"}</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <Button variant="outline" className="rounded-xl border-2 bg-blue-50 border-blue-200 text-blue-700">PDF</Button>
-                      <Button variant="outline" className="rounded-xl border-2 opacity-50 cursor-not-allowed">XLS</Button>
-                      <Button variant="outline" className="rounded-xl border-2 opacity-50 cursor-not-allowed">CSV</Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <label className="text-sm font-bold text-slate-700">Target Entity</label>
-                    <Select 
-                      value={reportEntity} 
-                      onValueChange={(val) => {
-                        setReportEntity(val as any)
-                        setSelectedEntityId("all")
-                      }}
-                    >
-                      <SelectTrigger className="w-full bg-slate-50 border-2 rounded-xl p-3 h-auto">
-                        <SelectValue placeholder="Select target entity..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="fleet">Entire Fleet</SelectItem>
-                        <SelectItem value="driver">Specific Driver</SelectItem>
-                        <SelectItem value="bus">Specific Bus</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {reportEntity === "driver" && (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                      <label className="text-sm font-bold text-slate-700">Select Driver</label>
-                      <Select 
-                        value={selectedEntityId} 
-                        onValueChange={setSelectedEntityId}
-                      >
-                        <SelectTrigger className="w-full bg-slate-50 border-2 rounded-xl p-3 h-auto">
-                          <SelectValue placeholder="Select a driver..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Select a driver...</SelectItem>
-                          {(Array.isArray(drivers) ? drivers : []).map(d => (
-                            <SelectItem key={d.id || d.licenseNumber} value={d.id || d.licenseNumber}>
-                              {d.name} ({d.licenseNumber})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {reportEntity === "bus" && (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                      <label className="text-sm font-bold text-slate-700">Select Bus</label>
-                      <Select 
-                        value={selectedEntityId} 
-                        onValueChange={setSelectedEntityId}
-                      >
-                        <SelectTrigger className="w-full bg-slate-50 border-2 rounded-xl p-3 h-auto">
-                          <SelectValue placeholder="Select a bus..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Select a bus...</SelectItem>
-                          {(Array.isArray(fleet) ? fleet : []).map(f => (
-                            <SelectItem key={f.id || f.busNumber} value={f.id || f.busNumber}>
-                              {f.busNumber || f.id}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  <div className="space-y-4">
-                    <label className="text-sm font-bold text-slate-700">{t("time_period") || "Time Period"}</label>
-                    <Select 
-                      value={timePeriod} 
-                      onValueChange={(val) => setTimePeriod(val as any)}
-                    >
-                      <SelectTrigger className="w-full bg-slate-50 border-2 rounded-xl p-3 h-auto">
-                        <SelectValue placeholder="Select time period..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="daily">Daily (Last 24 Hours)</SelectItem>
-                        <SelectItem value="weekly">Weekly (Last 7 Days)</SelectItem>
-                        <SelectItem value="monthly">Monthly (Last 30 Days)</SelectItem>
-                        <SelectItem value="lifetime">Lifetime (All Time)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Button 
-                    className="w-full py-6 rounded-2xl bg-slate-900 text-white hover:bg-slate-800 shadow-xl transition-all"
-                    onClick={() => handleDownload('custom', 'Custom Fleet Analysis')}
+                <CardTitle className="text-base">{report.title}</CardTitle>
+                <CardDescription className="text-sm">{report.desc}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    LIVE STATUS
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-primary hover:text-primary hover:bg-primary/10 text-xs font-medium"
+                    onClick={() => handleDownload(report.id, report.title)}
                     disabled={isGenerating !== null}
                   >
-                    {isGenerating === 'custom' ? (
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    {isGenerating === report.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
                     ) : (
-                      <FileDown className="h-5 w-5 mr-2" />
+                      <Download className="h-3 w-3 mr-1" />
                     )}
-                    {t("generate_custom_report") || "Generate Custom Report"}
+                    {t("download_pdf") || "download_pdf"}
                   </Button>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Fleet Analytics Overview & Safety Incident Summary */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* Left: Analytics Overview (col-span-1) */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Fleet Analytics Overview</CardTitle>
+            <CardDescription>Live metrics from the active fleet and driver data</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Active Drivers */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Users className="h-4 w-4" /> Active Duty Drivers
+                </span>
+                <span className="text-sm font-bold text-green-500">{data.activeDrivers} / {data.totalDrivers}</span>
+              </div>
+              <Progress value={(data.activeDrivers / data.totalDrivers) * 100} className="h-2" />
             </div>
 
-            {/* Quick Reports Grid */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {[
-                  { 
-                    id: "driver-performance", 
-                    title: t("driver_performance_report") || "Driver Performance", 
-                    desc: t("driver_performance_desc") || "Safety scores, alert history, and ranking for all drivers.",
-                    icon: Users,
-                    color: "bg-blue-100 text-blue-700",
-                    period: "Dynamic"
-                  },
-                  { 
-                    id: "fleet-analytics", 
-                    title: t("fleet_analytics_report") || "Fleet Analytics", 
-                    desc: t("fleet_analytics_desc") || "Vehicle health, fuel efficiency, and operational utilization.",
-                    icon: Bus,
-                    color: "bg-emerald-100 text-emerald-700",
-                    period: "Dynamic"
-                  },
-                  { 
-                    id: "daily-summary", 
-                    title: t("todays_summary") || "Safety Summary", 
-                    desc: t("daily_summary_desc") || "Full breakdown of safety incidents and system alerts for the period.",
-                    icon: Shield,
-                    color: "bg-rose-100 text-rose-700",
-                    period: "Dynamic"
-                  },
-                  { 
-                    id: "compliance", 
-                    title: t("regulatory_compliance_report") || "Compliance Audit", 
-                    desc: t("regulatory_desc") || "Audit trail for licenses, permits, and regulatory standards.",
-                    icon: Activity,
-                    color: "bg-amber-100 text-amber-700",
-                    period: "Dynamic"
-                  }
-                ].map((report) => (
-                  <Card key={report.id} className="border-2 rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 group relative">
-                    <CardHeader className="pb-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className={`${report.color} p-3 rounded-2xl group-hover:scale-110 transition-transform duration-300`}>
-                          <report.icon className="h-6 w-6" />
-                        </div>
-                        <Badge variant="secondary" className="rounded-lg">{report.period}</Badge>
-                      </div>
-                      <CardTitle className="text-xl group-hover:text-blue-600 transition-colors">{report.title}</CardTitle>
-                      <CardDescription className="line-clamp-2">{report.desc}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between pt-4 border-t-2">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center">
-                          <Clock className="h-3 w-3 mr-1" />
-                          Live Status
-                        </span>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="rounded-xl hover:bg-blue-50 text-blue-600 font-bold"
-                          onClick={() => handleDownload(report.id, report.title)}
-                          disabled={isGenerating !== null}
-                        >
-                          {isGenerating === report.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <Download className="h-4 w-4 mr-2" />
-                          )}
-                          {t("download_pdf") || "Download"}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+            {/* Active Vehicles */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Bus className="h-4 w-4" /> Active Vehicles
+                </span>
+                <span className="text-sm font-bold text-primary">{data.activeVehicles} / {data.totalVehicles}</span>
               </div>
-
-              {/* Recently Generated Section */}
-              <Card className="border-2 rounded-3xl shadow-xl">
-                <CardHeader>
-                  <CardTitle>{t("previously_generated") || "Recently Generated Reports"}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4 text-center p-8">
-                     <p className="text-slate-400 font-medium">No reports generated today. Generate a report above to view history.</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <Progress value={data.totalVehicles > 0 ? (data.activeVehicles / data.totalVehicles) * 100 : 0} className="h-2" />
             </div>
-          </div>
-        </TabsContent>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="analytics" className="space-y-8">
-           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Performance Trends Chart Placeholder */}
-              <Card className="border-2 rounded-3xl shadow-xl min-h-[400px] flex flex-col">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <LineChart className="h-5 w-5 text-indigo-600" />
-                    {t("performance_trends") || "Safety Performance Trends"}
-                  </CardTitle>
-                  <CardDescription>Live safety scores across the entire fleet</CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1 flex items-center justify-center relative group">
-                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="text-center space-y-4">
-                    <div className="inline-flex bg-indigo-100 p-4 rounded-full mb-2">
-                      <LineChart className="h-12 w-12 text-indigo-600 animate-pulse" />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-800">Visual Analytics Ready</h3>
-                    <p className="text-slate-500 max-w-xs mx-auto">Interactive charts are synchronized with real-time fleet telemetry.</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Distribution Chart Placeholder */}
-              <Card className="border-2 rounded-3xl shadow-xl min-h-[400px] flex flex-col">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <PieChart className="h-5 w-5 text-rose-600" />
-                    {t("incident_analysis_visuals") || "Incident Distribution"}
-                  </CardTitle>
-                  <CardDescription>Live breakdown of safety alerts</CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1 flex items-center justify-center group relative">
-                   <div className="absolute inset-0 bg-gradient-to-br from-rose-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                   <div className="text-center space-y-4">
-                    <div className="inline-flex bg-rose-100 p-4 rounded-full mb-2">
-                      <PieChart className="h-12 w-12 text-rose-600 animate-pulse" />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-800">Dynamic Data Map</h3>
-                    <p className="text-slate-500 max-w-xs mx-auto">Categorical distribution based on AI-classified safety events.</p>
-                  </div>
-                </CardContent>
-              </Card>
-           </div>
-
-           {/* Metrics Grid */}
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <Card className="border-2 rounded-3xl shadow-xl p-8 bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-none overflow-hidden relative">
-                <div className="absolute top-0 right-0 p-8 opacity-20">
-                  <Activity className="h-32 w-32 -mr-12 -mt-12" />
-                </div>
-                <div className="relative z-10">
-                  <p className="text-blue-100 font-bold uppercase tracking-widest text-xs mb-2">Live Alert Engine</p>
-                  <h2 className="text-5xl font-extrabold mb-4">{data.uniqueTodayAlerts.length}</h2>
-                  <p className="text-blue-100/80 text-sm leading-relaxed">Total alerts securely ingested and processed by the live analytical pipeline today.</p>
-                </div>
-              </Card>
-
-              <Card className="border-2 rounded-3xl shadow-xl p-8 bg-white overflow-hidden group">
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-1">Fleet Sync Status</p>
-                    <h2 className="text-4xl font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors">Optimal</h2>
-                  </div>
-                  <div className="bg-slate-50 p-3 rounded-2xl">
-                    <Clock className="h-6 w-6 text-slate-400" />
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex justify-between text-sm font-bold">
-                    <span className="text-slate-600">Active Duty Drivers</span>
-                    <span className="text-emerald-600">{data.activeDrivers} / {data.totalDrivers}</span>
-                  </div>
-                  <Progress value={(data.activeDrivers / data.totalDrivers) * 100} className="h-1.5 bg-slate-100" />
-                </div>
-              </Card>
-
-              <Card className="border-2 rounded-3xl shadow-xl p-8 bg-white overflow-hidden group">
-                 <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-1">Alert Density</p>
-                    <h2 className="text-4xl font-extrabold text-slate-900 group-hover:text-rose-600 transition-colors">{data.alertDensity}</h2>
-                  </div>
-                  <div className="bg-slate-50 p-3 rounded-2xl">
-                    <AlertTriangle className="h-6 w-6 text-slate-400" />
-                  </div>
-                </div>
-                <p className="text-slate-500 text-sm mb-6">Average number of alerts per active vehicle in the fleet today.</p>
-              </Card>
-           </div>
-        </TabsContent>
-
-        <TabsContent value="insights" className="space-y-8">
-          <Card className="border-2 rounded-3xl shadow-xl overflow-hidden">
-            <div className="bg-slate-900 p-12 text-white relative">
-              <div className="absolute top-0 right-0 p-12 opacity-10">
-                <TrendingUp className="h-64 w-64 -mr-24 -mt-24" />
+        {/* Right: Safety Incident Summary Chart (col-span-2) */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Today's Incident Summary</CardTitle>
+            <CardDescription>Breakdown of safety incidents and object detections</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[220px]">
+            {data.uniqueTodayAlerts.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center">
+                <BarChart3 className="h-10 w-10 text-muted-foreground/40 mb-2" />
+                <p className="text-sm text-muted-foreground font-medium">No safety alerts logged today.</p>
               </div>
-              <div className="max-w-2xl relative z-10">
-                <Badge className="mb-4 bg-blue-600 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Live Safety Insight</Badge>
-                <h2 className="text-4xl font-extrabold mb-6 leading-tight">Live Safety Score is currently tracking at <span className="text-blue-400">{data.safetyScore.toFixed(1)}%</span>.</h2>
-                <p className="text-slate-400 text-lg leading-relaxed mb-8">
-                  The AI-Weighted risk analysis is continuously evaluating all incoming alerts. Risk level is dynamically classified as <strong className="text-white">{data.riskLevel}</strong>.
-                </p>
-              </div>
-            </div>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </motion.div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  layout="vertical"
+                  data={data.chartData}
+                  margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                >
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={150}
+                    tick={{ fontSize: 11, fontWeight: "bold" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "transparent" }}
+                    formatter={(value: any) => [`${value} incidents`, "Count"]}
+                  />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={12}>
+                    {data.chartData.map((entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+
+    </div>
   )
 }
