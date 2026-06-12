@@ -68,7 +68,15 @@ export function HazardMonitoringMap() {
     if (!mapLoaded || !mapRef.current || !(window as any).L || mapInstance) return
 
     const L = (window as any).L
-    const map = L.map(mapRef.current).setView([center.lat, center.lng], 8)
+    const container = mapRef.current as any
+    
+    // Fix for "Map container is being reused by another instance"
+    if (container._leaflet_id !== null && container._leaflet_id !== undefined) {
+      container._leaflet_id = null
+      container.innerHTML = ""
+    }
+
+    const map = L.map(container).setView([center.lat, center.lng], 8)
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19,

@@ -36,6 +36,7 @@ const updateVehicleSchema = z.object({
   status: z.enum(["active", "inactive"]).optional(),
   driverId: z.string().optional(),
   driverName: z.string().optional(),
+  ownerName: z.string().optional(),
   route: z.string().optional(),
   routeId: z.string().optional(),
   locationDepot: z.string().optional(),

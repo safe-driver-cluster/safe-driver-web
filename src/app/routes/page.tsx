@@ -101,8 +101,8 @@ export default function RouteMonitoring() {
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
   const [modalTab, setModalTab] = useState<"map" | "hazards">("map")
   const [selectedHazardInfo, setSelectedHazardInfo] = useState<HazardZone | null>(null)
-  const [routeHazards, setRouteHazards] = useState<HazardZone[]>([])
-  const [hazardsLoading, setHazardsLoading] = useState(false)
+
+  const routeHazards = selectedRoute?.hazardZones || []
 
   const [leafletLoaded, setLeafletLoaded] = useState(false)
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -139,7 +139,15 @@ export default function RouteMonitoring() {
     if (!leafletLoaded || modalTab !== "hazards" || !mapContainerRef.current || !(window as any).L || mapRef) return
 
     const L = (window as any).L
-    const map = L.map(mapContainerRef.current).setView([hazardMapCenter.lat, hazardMapCenter.lng], 8)
+    const container = mapContainerRef.current as any
+
+    // Fix for "Map container is being reused by another instance"
+    if (container._leaflet_id !== null && container._leaflet_id !== undefined) {
+      container._leaflet_id = null
+      container.innerHTML = ""
+    }
+
+    const map = L.map(container).setView([hazardMapCenter.lat, hazardMapCenter.lng], 8)
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19,
@@ -171,24 +179,6 @@ export default function RouteMonitoring() {
       }
     }
   }, [mapRef])
-
-  // Fetch ALL hazards (no proximity filter — user placed them, they're all relevant)
-  useEffect(() => {
-    if (modalTab !== "hazards" || !selectedRoute) return
-    const fetchHazards = async () => {
-      setHazardsLoading(true)
-      setSelectedHazardInfo(null)
-      try {
-        const all = await hazardService.getAllHazards()
-        setRouteHazards(all)
-      } catch {
-        setRouteHazards([])
-      } finally {
-        setHazardsLoading(false)
-      }
-    }
-    fetchHazards()
-  }, [modalTab, selectedRoute])
 
   // Draw layers
   useEffect(() => {
@@ -932,22 +922,22 @@ export default function RouteMonitoring() {
                     <MapIcon className="h-4 w-4" />
                     Live Map
                   </button>
-                  <button
-                    onClick={() => { setModalTab("hazards"); setSelectedHazardInfo(null); }}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                      modalTab === "hazards"
-                        ? "bg-background text-amber-600 dark:text-amber-400 shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <AlertTriangle className="h-4 w-4" />
-                    Hazard Zones
-                    {routeHazards.length > 0 && (
+                  {routeHazards.length > 0 && (
+                    <button
+                      onClick={() => { setModalTab("hazards"); setSelectedHazardInfo(null); }}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                        modalTab === "hazards"
+                          ? "bg-background text-amber-600 dark:text-amber-400 shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <AlertTriangle className="h-4 w-4" />
+                      Hazard Zones
                       <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                         {routeHazards.length}
                       </span>
-                    )}
-                  </button>
+                    </button>
+                  )}
                 </div>
 
                 {/* Live Map Tab */}
@@ -969,10 +959,10 @@ export default function RouteMonitoring() {
                   <div className="space-y-4">
                     {/* Hazard map */}
                     <div className="w-full h-[400px] rounded-2xl overflow-hidden border border-border bg-muted shadow-inner relative">
-                      {!leafletLoaded || hazardsLoading ? (
+                      {!leafletLoaded ? (
                         <div className="h-full flex flex-col items-center justify-center gap-3">
                           <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
-                          <p className="text-sm font-bold text-muted-foreground">Loading hazard data...</p>
+                          <p className="text-sm font-bold text-muted-foreground">Loading hazard map...</p>
                         </div>
                       ) : routeHazards.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center gap-3 bg-amber-50 dark:bg-amber-950/20">

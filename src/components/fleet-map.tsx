@@ -44,9 +44,16 @@ export function FleetMap({ vehicles, selectedVehicle, onVehicleClick, className 
     if (!mapLoaded || !mapRef.current || !(window as any).L) return
 
     const L = (window as any).L
+    const container = mapRef.current as any
 
     if (!mapInstance) {
-      const map = L.map(mapRef.current).setView([6.9271, 79.8612], 8)
+      // Fix for "Map container is being reused by another instance"
+      if (container._leaflet_id !== null && container._leaflet_id !== undefined) {
+        container._leaflet_id = null
+        container.innerHTML = ""
+      }
+
+      const map = L.map(container).setView([6.9271, 79.8612], 8)
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 19,

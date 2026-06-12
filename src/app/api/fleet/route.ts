@@ -35,6 +35,7 @@ const createVehicleSchema = z.object({
     .max(new Date().getFullYear() + 1, `Year cannot be greater than ${new Date().getFullYear() + 1}`),
   driverId: z.string().optional(),
   driverName: z.string().max(100, "Driver name must be 100 characters or less").optional(),
+  ownerName: z.string().max(100, "Owner name must be 100 characters or less").optional(),
   route: z.string().max(200, "Route must be 200 characters or less").optional(),
   routeId: z.string().optional(),
   locationDepot: z.string().optional(),

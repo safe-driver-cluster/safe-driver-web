@@ -31,7 +31,7 @@ export interface Alert {
   route: string
   location: string
   timestamp: string
-  status: "active" | "acknowledged" | "resolved"
+  status: "active" | "acknowledged" | "resolved" | "archived"
   description: string
   deviceId?: string
   tag?: string
@@ -329,7 +329,7 @@ export function useLiveAlerts() {
   const [firestoreVehicles, setFirestoreVehicles] = useState<Vehicle[]>([])
   const [firestoreRoutes, setFirestoreRoutes] = useState<any[]>([])
   const [firestoreDrivers, setFirestoreDrivers] = useState<any[]>([])
-  const [alertStatuses, setAlertStatuses] = useState<Record<string, "active" | "acknowledged" | "resolved">>({})
+  const [alertStatuses, setAlertStatuses] = useState<Record<string, "active" | "acknowledged" | "resolved" | "archived">>({})
   const [availableDeviceIds, setAvailableDeviceIds] = useState<string[]>([])
   const historyAlertsMapRef = useRef<Map<string, Alert>>(new Map())
 
@@ -733,7 +733,7 @@ export function useLiveAlerts() {
                     if (alertData && alertData.message && alertData.tag && alertData.time && alertData.type) {
                       const deviceInfo = devices[deviceId]
                       const alert = transformAlert(deviceId, alertData, deviceInfo, undefined, firestoreVehicles, firestoreRoutes, firestoreDrivers)
-                      alert.status = "resolved"
+                      alert.status = "archived"
                       alert.id = `${deviceId}-${date}-${doc.id}-${alertData.time}`
                       
                       historyAlertsMapRef.current.set(alert.id, alert)

@@ -14,10 +14,11 @@ import { useLanguage } from "@/components/language-provider"
 export default function AlertsPage() {
   // Use live alerts from Firebase Realtime Database
   const { alerts: liveAlerts, historyAlerts, isLoading: isLoadingAlerts, error } = useLiveAlerts()
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false)
   const { t } = useLanguage()
 
   // Track alert statuses (acknowledged/resolved) in local state
-  const [alertStatuses, setAlertStatuses] = useState<Record<string, "active" | "acknowledged" | "resolved">>({})
+  const [alertStatuses, setAlertStatuses] = useState<Record<string, "active" | "acknowledged" | "resolved" | "archived">>({})
   const [expandedImages, setExpandedImages] = useState<Record<string, boolean>>({})
   const [activeTab, setActiveTab] = useState("active")
   const previousAlertsRef = useRef<Alert[]>([])
@@ -83,7 +84,20 @@ export default function AlertsPage() {
     if (activeTab === "history") {
       sourceAlerts = [...alerts, ...historyAlerts]
     } else {
-      sourceAlerts = alerts.filter((alert) => alert.status === activeTab)
+      sourceAlerts = alerts.filter((alert) => {
+        if (alert.status !== activeTab) return false
+        
+        // Acknowledged & Resolved tabs show alerts last 24 hours
+        if (alert.status === "acknowledged" || alert.status === "resolved") {
+          const alertTime = parseTimestamp(alert.timestamp)?.getTime() || 0
+          const now = new Date().getTime()
+          const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
+          if (now - alertTime > TWENTY_FOUR_HOURS) {
+            return false
+          }
+        }
+        return true
+      })
     }
 
     // Deduplicate alerts based on deviceId, timestamp (within 60s), and description
@@ -170,9 +184,11 @@ export default function AlertsPage() {
   }, [alerts])
 
   const refreshAlerts = () => {
-    // Alerts are automatically refreshed via Firebase Realtime Database listener
-    // This function can be used to manually trigger a refresh if needed
-    console.log("Alerts are automatically updated in real-time from Firebase")
+    setIsManualRefreshing(true)
+    // Alerts are automatically refreshed, but this provides a manual override to completely refresh data
+    setTimeout(() => {
+      window.location.reload()
+    }, 400)
   }
 
   const handleAcknowledgeAlert = (alertId: string) => {
@@ -221,6 +237,8 @@ export default function AlertsPage() {
         return "bg-yellow-100 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-400"
       case "resolved":
         return "bg-green-100 dark:bg-green-950/30 text-green-800 dark:text-green-400"
+      case "archived":
+        return "bg-slate-100 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400"
       default:
         return "bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-200"
     }
@@ -326,11 +344,6 @@ export default function AlertsPage() {
               <p className="text-sm text-muted-foreground">
                 {t("realtime_alerts")} • {t(filteredAlerts.length === 1 ? "alert_found" : "alerts_found", { count: filteredAlerts.length })}
               </p>
-              {filteredAlerts.length === 0 && (
-                <p className="text-xs text-orange-600 mt-1">
-                  ⚠️ {t("no_alerts_warning")}
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -340,12 +353,12 @@ export default function AlertsPage() {
             variant="outline"
             size="sm"
             onClick={refreshAlerts}
-            disabled={isLoadingAlerts}
+            disabled={isLoadingAlerts || isManualRefreshing}
             className="flex items-center gap-2"
-            title="Alerts update automatically in real-time"
+            title="Refresh connection"
           >
-            <RefreshCw className={`h-4 w-4 ${isLoadingAlerts ? "animate-spin" : ""}`} />
-            {isLoadingAlerts ? t("loading") : t("live")}
+            <RefreshCw className={`h-4 w-4 ${isLoadingAlerts || isManualRefreshing ? "animate-spin" : ""}`} />
+            {isLoadingAlerts || isManualRefreshing ? t("loading") : t("live")}
           </Button>
         </div>
       </div>
@@ -391,7 +404,7 @@ export default function AlertsPage() {
                         <div>
                           <CardTitle className="text-lg">{alert.description || getAlertDescription(alert.type)}</CardTitle>
                           <CardDescription className="flex items-center gap-2 mt-1 flex-wrap">
-                            <span>{alert.driverName}</span>
+                            <span>{alert.driverId}</span>
                             <span>•</span>
                             {/* Show number_plate if available, otherwise show busNumber, but not both if they're the same */}
                             {(alert.number_plate || alert.busNumber) && (
@@ -541,7 +554,7 @@ export default function AlertsPage() {
                             ? t("no_history_found")
                             : t("no_status_alerts", { status: activeTab })}
                       </p>
-                      {!error && (
+                      {!error && activeTab === "active" && (
                         <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-md text-left">
                           <p className="text-xs font-medium text-blue-800 dark:text-blue-400 mb-2">Debugging Steps:</p>
                           <ol className="text-xs text-blue-700 dark:text-blue-300 space-y-1 list-decimal list-inside">

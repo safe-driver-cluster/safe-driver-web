@@ -15,6 +15,7 @@ export interface Feedback {
   driverName?: string | null
   helpfulCount?: number
   images?: any[]
+  mediaUrls?: string[]
   isAnonymous?: boolean
   isPublic?: boolean
   location?: any | null
