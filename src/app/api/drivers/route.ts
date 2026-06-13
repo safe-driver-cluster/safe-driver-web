@@ -18,6 +18,7 @@ const createDriverSchema = z.object({
   busNumber: z.string().optional(),
   address: z.string().optional(),
   experience: z.string().optional(),
+  languages: z.string().optional(),
 })
 
 // GET /api/drivers - Get all drivers with optional filters

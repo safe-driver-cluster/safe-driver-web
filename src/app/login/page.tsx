@@ -23,20 +23,17 @@ import {
 } from "lucide-react"
 
 export default function LoginPage() {
-  const { signIn, signUp } = useAuth()
+  const { signIn } = useAuth()
   const { toast } = useToast()
 
-  const [mode, setMode] = useState<"login" | "signup">("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [name, setName] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
   const [touched, setTouched] = useState({
     email: false,
     password: false,
-    name: false,
   })
 
   // Dynamic Validation Logic
@@ -52,9 +49,7 @@ export default function LoginPage() {
     ? "Password must be at least 6 characters"
     : ""
 
-  const nameError = mode === "signup" && !name ? "Name is required" : ""
-
-  const handleBlur = (field: "email" | "password" | "name") => {
+  const handleBlur = (field: "email" | "password") => {
     setTouched((prev) => ({ ...prev, [field]: true }))
   }
 
@@ -63,33 +58,22 @@ export default function LoginPage() {
     e.preventDefault()
     
     // Mark all as touched on submit
-    setTouched({ email: true, password: true, name: true })
+    setTouched({ email: true, password: true })
 
-    if (mode === "login" && (emailError || passwordError)) return
-    if (mode === "signup" && (emailError || passwordError || nameError)) return
+    if (emailError || passwordError) return
 
     setIsSubmitting(true)
 
     try {
-      if (mode === "login") {
-        await signIn(email, password)
-        toast({
-          title: "Success",
-          description: "Logged in successfully.",
-        })
-      } else if (mode === "signup") {
-        await signUp(email, password, name)
-        toast({
-          title: "Registration Success",
-          description: "Account registered and logged in.",
-        })
-      }
+      await signIn(email, password)
+      toast({
+        title: "Success",
+        description: "Logged in successfully.",
+      })
     } catch (err: any) {
       let friendlyMsg = err.message || "Authentication error."
       if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
         friendlyMsg = "Invalid email or password. Please verify your inputs."
-      } else if (err.code === "auth/email-already-in-use") {
-        friendlyMsg = "This email is already in use by another account."
       } else if (err.code === "auth/network-request-failed") {
         friendlyMsg = "Network error. Please check your connection."
       }
@@ -102,14 +86,6 @@ export default function LoginPage() {
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  const toggleMode = (newMode: "login" | "signup") => {
-    setMode(newMode)
-    setEmail("")
-    setPassword("")
-    setName("")
-    setTouched({ email: false, password: false, name: false })
   }
 
   return (
@@ -194,66 +170,12 @@ export default function LoginPage() {
         <div className="w-full max-w-[440px] space-y-8">
           {/* Form Header */}
           <div className="space-y-2">
-            {mode === "login" && (
-              <>
-                <h2 className="text-2xl font-bold tracking-tight text-white">Sign In to Dashboard</h2>
-                <p className="text-sm text-slate-400">Enter your credentials to manage transport systems.</p>
-              </>
-            )}
-            {mode === "signup" && (
-              <>
-                <h2 className="text-2xl font-bold tracking-tight text-white">Create Admin Account</h2>
-                <p className="text-sm text-slate-400">Register as a transport safety administrator.</p>
-              </>
-            )}
+            <h2 className="text-2xl font-bold tracking-tight text-white">Sign In to Dashboard</h2>
+            <p className="text-sm text-slate-400">Enter your credentials to manage transport systems.</p>
           </div>
-
-          {/* Sandbox Access Helper (English, Sinhala, Tamil inline toggle context) */}
-          {mode === "login" && (
-            <div className="p-3.5 rounded-lg bg-blue-500/5 border border-blue-500/20 text-xs text-blue-400/90 leading-relaxed space-y-1">
-              <div className="font-semibold text-blue-300 flex items-center gap-1.5">
-                <Shield className="h-3.5 w-3.5 text-blue-400" />
-                <span>Sandbox / Evaluation Credentials:</span>
-              </div>
-              <p>Email: <span className="text-white font-mono">admin@safedriver.com</span></p>
-              <p>Password: <span className="text-white font-mono">Password123</span></p>
-            </div>
-          )}
 
           {/* Main Auth Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Display Name Input (Only on Sign Up) */}
-            {mode === "signup" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="name" className="text-slate-300 text-sm">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder="Enter your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    onBlur={() => handleBlur("name")}
-                    className={`pl-10 bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 ${
-                      touched.name && nameError ? "border-red-500 focus-visible:ring-red-500" : ""
-                    } ${touched.name && !nameError ? "border-emerald-500 focus-visible:ring-emerald-500" : ""}`}
-                  />
-                  {touched.name && nameError && (
-                    <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
-                  )}
-                  {touched.name && !nameError && (
-                    <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
-                  )}
-                </div>
-                {touched.name && nameError && (
-                  <p className="text-xs text-red-500 font-medium flex items-center gap-1 mt-1">
-                    <span>{nameError}</span>
-                  </p>
-                )}
-              </div>
-            )}
-
             {/* Email Address Input */}
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-slate-300 text-sm">Email Address</Label>
@@ -329,43 +251,12 @@ export default function LoginPage() {
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2 w-full">
-                  <span>
-                    {mode === "login" && "Sign In"}
-                    {mode === "signup" && "Create Account"}
-                  </span>
+                  <span>Sign In</span>
                   <ArrowRight className="h-4 w-4" />
                 </div>
               )}
             </Button>
           </form>
-
-          <div className="text-center text-sm text-slate-400 pt-2 border-t border-slate-900">
-            {mode === "login" ? (
-              <>
-                Don't have an admin account?{" "}
-                <button
-                  type="button"
-                  onClick={() => toggleMode("signup")}
-                  className="text-blue-400 hover:text-blue-300 font-semibold hover:underline transition-colors focus:outline-none"
-                >
-                  Create one now
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an admin account?{" "}
-                <button
-                  type="button"
-                  onClick={() => toggleMode("login")}
-                  className="text-blue-400 hover:text-blue-300 font-semibold hover:underline transition-colors focus:outline-none"
-                >
-                  Sign In
-                </button>
-              </>
-            )}
-          </div>
-
-
 
         </div>
       </div>

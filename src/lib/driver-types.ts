@@ -13,6 +13,7 @@ export interface Driver {
   joinDate: string
   experience: string
   address?: string
+  languages?: string
   createdAt?: string
   updatedAt?: string
 }
@@ -25,6 +26,7 @@ export interface CreateDriverInput {
   busNumber?: string
   address?: string
   experience?: string
+  languages?: string
 }
 
 export interface UpdateDriverInput {
@@ -36,6 +38,7 @@ export interface UpdateDriverInput {
   status?: DriverStatus
   address?: string
   experience?: string
+  languages?: string
   alertCount?: number
   lastAlert?: string
 }

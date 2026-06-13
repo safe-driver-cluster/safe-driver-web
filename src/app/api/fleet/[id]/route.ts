@@ -21,21 +21,23 @@ const updateVehicleSchema = z.object({
       (val) => (val === "" || val === null || val === undefined ? undefined : val),
       z.string().max(20, "Bus number must be 20 characters or less").optional()
     ),
-  documentId: z
-    .preprocess(
-      (val) => (val === "" || val === null || val === undefined ? undefined : val),
-      z.string().max(50, "Document ID must be 50 characters or less").optional()
-    ),
+
   deviceId: z
     .preprocess(
       (val) => (val === "" || val === null || val === undefined ? undefined : val),
       z.string().max(50, "Device ID must be 50 characters or less").optional()
+    ),
+  anyDeskId: z
+    .preprocess(
+      (val) => (val === "" || val === null || val === undefined ? undefined : val),
+      z.string().max(50, "AnyDesk ID must be 50 characters or less").optional()
     ),
   model: z.string().min(1).optional(),
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
   status: z.enum(["active", "inactive"]).optional(),
   driverId: z.string().optional(),
   driverName: z.string().optional(),
+  ownerName: z.string().optional(),
   route: z.string().optional(),
   routeId: z.string().optional(),
   locationDepot: z.string().optional(),

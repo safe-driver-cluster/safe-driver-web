@@ -78,6 +78,31 @@ export const hazardService = {
     }
   },
 
+  // Update a hazard
+  updateHazard: async (hazardId: string, updates: Partial<Omit<HazardZone, "id">>): Promise<void> => {
+    try {
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([, v]) => v !== undefined)
+      )
+      await firestoreService.updateDocument(COLLECTION_NAME, hazardId, cleanUpdates)
+      
+      const routes = await routeService.getAllRoutes()
+      for (const route of routes) {
+        if (route.hazardZones?.some((h) => h.id === hazardId)) {
+          const updatedHazards = route.hazardZones.map((h) => 
+            h.id === hazardId ? { ...h, ...cleanUpdates } : h
+          )
+          await routeService.updateRoute(route.id, {
+            hazardZones: updatedHazards,
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Error updating hazard:", error)
+      throw error
+    }
+  },
+
   // Delete a hazard
   deleteHazard: async (hazardId: string): Promise<void> => {
     try {

@@ -1,45 +1,64 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { useLanguage } from "@/components/language-provider"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-import { useLanguage } from "@/components/language-provider"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/hooks/use-toast"
+import { firestoreService } from "@/lib/firebase/firestore"
+import { Language } from "@/lib/translations"
 
 export function GeneralSettings() {
-  const [systemName, setSystemName] = useState("SafeDriver Authority Panel")
-  const { language, setLanguage } = useLanguage()
+  const { language, setLanguage, t } = useLanguage()
+  const { toast } = useToast()
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleLanguageChange = (val: Language) => {
+    setLanguage(val)
+  }
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      // Store in firebase as requested
+      await firestoreService.setDocument("settings", "general", {
+        language,
+        updatedAt: new Date().toISOString()
+      })
+      toast({
+        title: t("settings_saved") || "Settings saved",
+        description: t("settings_saved_desc") || "Your settings have been saved successfully.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save settings to Firebase.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>General Settings</CardTitle>
-        <CardDescription>Configure basic system settings and preferences.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="system-name">System Name</Label>
-          <Input id="system-name" value={systemName} onChange={(e) => setSystemName(e.target.value)} />
-          <p className="text-sm text-muted-foreground">This name will appear in the browser title and system header.</p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="language">Language</Label>
-          <Select value={language} onValueChange={(val: any) => setLanguage(val)}>
-            <SelectTrigger id="language">
-              <SelectValue placeholder="Select language" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="si-LK">Sinhala</SelectItem>
-              <SelectItem value="en-US">English</SelectItem>
-              <SelectItem value="ta-LK">Tamil</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-sm text-muted-foreground">The language used throughout the system interface.</p>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>{t("language") || "Language"}</Label>
+        <Select value={language} onValueChange={handleLanguageChange}>
+          <SelectTrigger className="w-full sm:w-[300px]">
+            <SelectValue placeholder="Select language" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="en-US">ENGLISH</SelectItem>
+            <SelectItem value="si-LK">SINHALA</SelectItem>
+            <SelectItem value="ta-LK">TAMIL</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <Button onClick={handleSave} disabled={isSaving}>
+        {isSaving ? "Saving..." : (t("save") || "Save Changes")}
+      </Button>
+    </div>
   )
 }
