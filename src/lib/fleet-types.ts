@@ -10,14 +10,15 @@ export interface Vehicle {
   id: string
   busNumberPlate?: string
   busNumber?: string
-  documentId?: string
   deviceId?: string
+  anyDeskId?: string
   model: string
   year: number
   status: VehicleStatus
   location: VehicleLocation
   driverId?: string
   driverName?: string
+  ownerName?: string
   route?: string
   routeId?: string
   locationDepot?: string
@@ -34,12 +35,13 @@ export interface Vehicle {
 export interface CreateVehicleInput {
   busNumberPlate: string
   busNumber?: string
-  documentId?: string
   deviceId?: string
+  anyDeskId?: string
   model: string
   year: number
   driverId?: string
   driverName?: string
+  ownerName?: string
   route?: string
   routeId?: string
   location?: VehicleLocation
@@ -52,13 +54,14 @@ export interface CreateVehicleInput {
 export interface UpdateVehicleInput {
   busNumberPlate?: string
   busNumber?: string
-  documentId?: string
   deviceId?: string
+  anyDeskId?: string
   model?: string
   year?: number
   status?: VehicleStatus
   driverId?: string
   driverName?: string
+  ownerName?: string
   route?: string
   routeId?: string
   location?: VehicleLocation

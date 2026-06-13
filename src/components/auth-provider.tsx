@@ -9,7 +9,6 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<any>
-  signUp: (email: string, password: string, name?: string) => Promise<any>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
   signInWithGoogle: () => Promise<any>
@@ -24,66 +23,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const savedSandboxUser = localStorage.getItem("safedriver_sandbox_user")
-    const hasLoggedInFlag = localStorage.getItem("safedriver_logged_in") === "true"
-
-    if (savedSandboxUser) {
-      try {
-        setUser(JSON.parse(savedSandboxUser))
-        setLoading(false)
-      } catch (e) {
-        localStorage.removeItem("safedriver_sandbox_user")
-      }
-    } else if (hasLoggedInFlag) {
-      // User has logged in previously (possibly via Firebase or mock). Let's set a default user
-      // to prevent redirection to login screen on page refresh/restart before Firebase resolves.
-      const mockUser = {
-        uid: "sandbox-admin-uid-123",
-        email: "admin@safedriver.com",
-        displayName: "Admin User",
-        emailVerified: true,
-      } as unknown as User
-      setUser(mockUser)
-      setLoading(false)
-    } else {
-      // Synchronously set to unauthenticated on fresh run to avoid loading flicker
-      setUser(null)
-      setLoading(false)
-    }
-
-    // Subscribe to Firebase Auth changes
-    let isResolved = false
     const unsubscribe = authService.onAuthStateChange((firebaseUser) => {
-      isResolved = true
       if (firebaseUser) {
         setUser(firebaseUser)
-        localStorage.setItem("safedriver_logged_in", "true")
-        localStorage.removeItem("safedriver_sandbox_user")
       } else {
-        // Only override state to null if there is no logged-in session flag
-        const currentLoggedInFlag = localStorage.getItem("safedriver_logged_in") === "true"
-        if (!currentLoggedInFlag) {
-          setUser(null)
-        }
+        setUser(null)
       }
       setLoading(false)
     })
 
-    // Fallback timeout in case Firebase is blocked or offline — immediately unblock
-    const timeoutId = setTimeout(() => {
-      if (!isResolved) {
-        console.warn("Firebase auth check timed out. Defaulting to unauthenticated state.")
-        const currentLoggedInFlag = localStorage.getItem("safedriver_logged_in") === "true"
-        if (!currentLoggedInFlag) {
-          localStorage.removeItem("safedriver_logged_in")
-          setUser(null)
-        }
-        setLoading(false)
-      }
-    }, 1500)
-
     return () => {
-      clearTimeout(timeoutId)
       unsubscribe()
     }
   }, [])
@@ -105,57 +54,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true)
     try {
       const result = await authService.signIn(email, password)
-      localStorage.removeItem("safedriver_sandbox_user")
-      localStorage.setItem("safedriver_logged_in", "true")
       setLoading(false)
       return result
     } catch (error: any) {
-      // Fallback for offline/unconfigured sandbox mode
-      if (email === "admin@safedriver.com" && password === "Password123") {
-        const mockUser = {
-          uid: "sandbox-admin-uid-123",
-          email: "admin@safedriver.com",
-          displayName: "Admin User",
-          emailVerified: true,
-        } as unknown as User
-        localStorage.setItem("safedriver_sandbox_user", JSON.stringify(mockUser))
-        localStorage.setItem("safedriver_logged_in", "true")
-        setUser(mockUser)
-        setLoading(false)
-        return { user: mockUser }
-      }
       setLoading(false)
       throw error
     }
   }
 
-  const signUp = async (email: string, password: string, name?: string) => {
-    setLoading(true)
-    try {
-      const result = await authService.signUp(email, password, name)
-      localStorage.removeItem("safedriver_sandbox_user")
-      localStorage.setItem("safedriver_logged_in", "true")
-      setLoading(false)
-      return result
-    } catch (error: any) {
-      // Fallback for offline/unconfigured sandbox mode registration
-      const mockUser = {
-        uid: `sandbox-uid-${Math.random().toString(36).substring(2, 11)}`,
-        email: email,
-        displayName: name || email.split("@")[0],
-        emailVerified: true,
-      } as unknown as User
-      localStorage.setItem("safedriver_sandbox_user", JSON.stringify(mockUser))
-      localStorage.setItem("safedriver_logged_in", "true")
-      setUser(mockUser)
-      setLoading(false)
-      return { user: mockUser }
-    }
-  }
-
   const signOut = async () => {
-    localStorage.removeItem("safedriver_sandbox_user")
-    localStorage.removeItem("safedriver_logged_in")
     setUser(null)
     setLoading(false)
     try {
@@ -168,37 +75,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const resetPassword = async (email: string) => {
-    try {
-      await authService.resetPassword(email)
-    } catch (error: any) {
-      if (email === "admin@safedriver.com") {
-        return // Mock success for sandbox testing
-      }
-      throw error
-    }
+    await authService.resetPassword(email)
   }
 
   const signInWithGoogle = async () => {
     setLoading(true)
     try {
       const result = await authService.signInWithGoogle()
-      localStorage.removeItem("safedriver_sandbox_user")
-      localStorage.setItem("safedriver_logged_in", "true")
       setLoading(false)
       return result
     } catch (error) {
-      console.warn("Firebase Google Sign-In failed, setting mock Google user:", error)
-      const mockUser = {
-        uid: "sandbox-google-uid-123",
-        email: "google-admin@safedriver.com",
-        displayName: "Google Admin",
-        emailVerified: true,
-      } as unknown as User
-      localStorage.setItem("safedriver_sandbox_user", JSON.stringify(mockUser))
-      localStorage.setItem("safedriver_logged_in", "true")
-      setUser(mockUser)
       setLoading(false)
-      return { user: mockUser }
+      throw error
     }
   }
 
@@ -213,7 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         loading,
         signIn,
-        signUp,
         signOut,
         resetPassword,
         signInWithGoogle,

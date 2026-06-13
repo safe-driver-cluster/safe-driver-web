@@ -27,7 +27,7 @@ export const firestoreService = {
     const docSnap = await getDoc(docRef)
 
     if (docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() } as T
+      return { ...docSnap.data(), id: docSnap.id } as T
     }
     return null
   },
@@ -45,7 +45,7 @@ export const firestoreService = {
     }
 
     const querySnapshot = await getDocs(q)
-    return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as T))
+    return querySnapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id } as T))
   },
 
   // Create a document with auto-generated ID

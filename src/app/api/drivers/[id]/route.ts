@@ -19,6 +19,7 @@ const updateDriverSchema = z.object({
   status: z.enum(["on_duty", "off_duty", "suspended"]).optional(),
   address: z.string().optional(),
   experience: z.string().optional(),
+  languages: z.string().optional(),
   alertCount: z.number().min(0).optional(),
   lastAlert: z.string().optional(),
 })

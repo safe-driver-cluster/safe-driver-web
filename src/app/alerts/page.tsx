@@ -14,10 +14,11 @@ import { useLanguage } from "@/components/language-provider"
 export default function AlertsPage() {
   // Use live alerts from Firebase Realtime Database
   const { alerts: liveAlerts, historyAlerts, isLoading: isLoadingAlerts, error } = useLiveAlerts()
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false)
   const { t } = useLanguage()
 
   // Track alert statuses (acknowledged/resolved) in local state
-  const [alertStatuses, setAlertStatuses] = useState<Record<string, "active" | "acknowledged" | "resolved">>({})
+  const [alertStatuses, setAlertStatuses] = useState<Record<string, "active" | "acknowledged" | "resolved" | "archived">>({})
   const [expandedImages, setExpandedImages] = useState<Record<string, boolean>>({})
   const [activeTab, setActiveTab] = useState("active")
   const previousAlertsRef = useRef<Alert[]>([])
@@ -34,22 +35,6 @@ export default function AlertsPage() {
       console.error("Failed to load alert statuses", e)
     }
   }, [])
-
-  // Debug: Log alerts when they change
-  useEffect(() => {
-    if (liveAlerts.length > 0) {
-      console.log("🎯 Live alerts updated:", liveAlerts.length, "alerts")
-      liveAlerts.forEach((alert, index) => {
-        console.log(`  Alert ${index + 1}:`, {
-          id: alert.id,
-          deviceId: alert.deviceId,
-          type: alert.type,
-          message: alert.description,
-          timestamp: alert.timestamp,
-        })
-      })
-    }
-  }, [liveAlerts])
 
 
 
@@ -83,7 +68,20 @@ export default function AlertsPage() {
     if (activeTab === "history") {
       sourceAlerts = [...alerts, ...historyAlerts]
     } else {
-      sourceAlerts = alerts.filter((alert) => alert.status === activeTab)
+      sourceAlerts = alerts.filter((alert) => {
+        if (alert.status !== activeTab) return false
+        
+        // Acknowledged & Resolved tabs show alerts last 24 hours
+        if (alert.status === "acknowledged" || alert.status === "resolved") {
+          const alertTime = parseTimestamp(alert.timestamp)?.getTime() || 0
+          const now = new Date().getTime()
+          const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
+          if (now - alertTime > TWENTY_FOUR_HOURS) {
+            return false
+          }
+        }
+        return true
+      })
     }
 
     // Deduplicate alerts based on deviceId, timestamp (within 60s), and description
@@ -170,9 +168,11 @@ export default function AlertsPage() {
   }, [alerts])
 
   const refreshAlerts = () => {
-    // Alerts are automatically refreshed via Firebase Realtime Database listener
-    // This function can be used to manually trigger a refresh if needed
-    console.log("Alerts are automatically updated in real-time from Firebase")
+    setIsManualRefreshing(true)
+    // Alerts are automatically refreshed, but this provides a manual override to completely refresh data
+    setTimeout(() => {
+      window.location.reload()
+    }, 400)
   }
 
   const handleAcknowledgeAlert = (alertId: string) => {
@@ -221,6 +221,8 @@ export default function AlertsPage() {
         return "bg-yellow-100 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-400"
       case "resolved":
         return "bg-green-100 dark:bg-green-950/30 text-green-800 dark:text-green-400"
+      case "archived":
+        return "bg-slate-100 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400"
       default:
         return "bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-200"
     }
@@ -286,33 +288,8 @@ export default function AlertsPage() {
             <div className="mt-2 p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-md">
               <p className="text-sm font-medium text-red-800 dark:text-red-400 mb-2">{t("error_loading_alerts")}:</p>
               <p className="text-sm text-red-600 dark:text-red-300 font-semibold">{error.message}</p>
-              {error.message.includes("Permission denied") && (
-                <div className="mt-3 p-3 bg-white dark:bg-slate-900 border border-red-300 dark:border-red-900/50 rounded">
-                  <p className="text-xs font-semibold text-red-800 dark:text-red-400 mb-2">🔧 {t("quick_fix")}:</p>
-                  <ol className="text-xs text-red-700 dark:text-red-300 space-y-1 list-decimal list-inside">
-                    <li>{t("go_to_firebase_rules").split(":")[0]}: <a href="https://console.firebase.google.com/project/safe-driver-system/database/safe-driver-system-default-rtdb/rules" target="_blank" rel="noopener noreferrer" className="underline font-medium">{t("go_to_firebase_rules").split(":")[1]}</a></li>
-                    <li>{t("paste_rules")}
-                      <pre className="mt-1 p-2 bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-200 rounded text-xs overflow-x-auto">{`{
-  "rules": {
-    "alerts": {
-      ".read": true,
-      ".write": false
-    },
-    "devices": {
-      ".read": true,
-      ".write": false
-    }
-  }
-}`}</pre>
-                    </li>
-                    <li>{t("click_publish")}</li>
-                    <li>{t("wait_refresh")}</li>
-                  </ol>
-                </div>
-              )}
-              <p className="text-xs text-red-500 dark:text-red-400 mt-2">
-                {t("check_console")}
-              </p>
+
+
             </div>
           )}
           {isLoadingAlerts && !error && (
@@ -326,11 +303,6 @@ export default function AlertsPage() {
               <p className="text-sm text-muted-foreground">
                 {t("realtime_alerts")} • {t(filteredAlerts.length === 1 ? "alert_found" : "alerts_found", { count: filteredAlerts.length })}
               </p>
-              {filteredAlerts.length === 0 && (
-                <p className="text-xs text-orange-600 mt-1">
-                  ⚠️ {t("no_alerts_warning")}
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -340,12 +312,12 @@ export default function AlertsPage() {
             variant="outline"
             size="sm"
             onClick={refreshAlerts}
-            disabled={isLoadingAlerts}
+            disabled={isLoadingAlerts || isManualRefreshing}
             className="flex items-center gap-2"
-            title="Alerts update automatically in real-time"
+            title="Refresh connection"
           >
-            <RefreshCw className={`h-4 w-4 ${isLoadingAlerts ? "animate-spin" : ""}`} />
-            {isLoadingAlerts ? t("loading") : t("live")}
+            <RefreshCw className={`h-4 w-4 ${isLoadingAlerts || isManualRefreshing ? "animate-spin" : ""}`} />
+            {isLoadingAlerts || isManualRefreshing ? t("loading") : t("live")}
           </Button>
         </div>
       </div>
@@ -368,7 +340,7 @@ export default function AlertsPage() {
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
-          {isLoadingAlerts && (
+          {isLoadingAlerts && filteredAlerts.length === 0 && (
             <Card>
               <CardContent className="flex items-center justify-center p-12">
                 <div className="text-center">
@@ -380,7 +352,7 @@ export default function AlertsPage() {
             </Card>
           )}
 
-          {!isLoadingAlerts && (
+          {(!isLoadingAlerts || filteredAlerts.length > 0) && (
             <div className="space-y-4">
               {filteredAlerts.map((alert) => (
                 <Card key={alert.id} className="w-full">
@@ -391,7 +363,7 @@ export default function AlertsPage() {
                         <div>
                           <CardTitle className="text-lg">{alert.description || getAlertDescription(alert.type)}</CardTitle>
                           <CardDescription className="flex items-center gap-2 mt-1 flex-wrap">
-                            <span>{alert.driverName}</span>
+                            <span>{alert.driverId}</span>
                             <span>•</span>
                             {/* Show number_plate if available, otherwise show busNumber, but not both if they're the same */}
                             {(alert.number_plate || alert.busNumber) && (
@@ -541,24 +513,12 @@ export default function AlertsPage() {
                             ? t("no_history_found")
                             : t("no_status_alerts", { status: activeTab })}
                       </p>
-                      {!error && (
-                        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-md text-left">
-                          <p className="text-xs font-medium text-blue-800 dark:text-blue-400 mb-2">Debugging Steps:</p>
-                          <ol className="text-xs text-blue-700 dark:text-blue-300 space-y-1 list-decimal list-inside">
-                            <li>Open browser console (F12) and check for Firebase connection messages</li>
-                            <li>Verify data exists in Firebase Console at: <code className="bg-blue-100 dark:bg-blue-950 px-1 rounded text-blue-900 dark:text-blue-200">/alerts/{`<DEVICE_ID>`}/latest</code></li>
-                            <li>Check that the <code className="bg-blue-100 dark:bg-blue-950 px-1 rounded text-blue-900 dark:text-blue-200">latest</code> node has: message, tag, time, type</li>
-                            <li>Verify database rules allow read access to <code className="bg-blue-100 dark:bg-blue-950 px-1 rounded text-blue-900 dark:text-blue-200">/alerts</code></li>
-                          </ol>
-                        </div>
-                      )}
+
                       {error && (
                         <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-md">
                           <p className="text-xs font-medium text-red-800 dark:text-red-400 mb-1">Error:</p>
                           <p className="text-xs text-red-600 dark:text-red-300">{error.message}</p>
-                          <p className="mt-2 text-xs text-red-500 dark:text-red-400">
-                            Check browser console (F12) for detailed error messages
-                          </p>
+
                         </div>
                       )}
                     </div>

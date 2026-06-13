@@ -71,12 +71,13 @@ export default function FleetManagement() {
   const { t } = useLanguage()
   const [newVehicle, setNewVehicle] = useState({
     busNumberPlate: "",
-    documentId: "",
     deviceId: "",
+    anyDeskId: "",
     busNumber: "",
     model: "",
     year: "",
     driverName: "",
+    ownerName: "",
     route: "",
     routeId: "",
     locationDepot: "",
@@ -142,15 +143,7 @@ export default function FleetManagement() {
     }
   }
 
-  // Refetch when filters change
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchVehicles(true)
-    }, 300)
 
-    return () => clearTimeout(timeoutId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, statusFilter])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -166,7 +159,6 @@ export default function FleetManagement() {
   const filteredVehicles = vehicles.filter((vehicle) => {
     const matchesSearch =
       vehicle.busNumberPlate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vehicle.documentId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       vehicle.deviceId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       vehicle.busNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (vehicle.driverName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -187,6 +179,10 @@ export default function FleetManagement() {
       if (!busPlatePattern.test(newVehicle.busNumberPlate.trim().toUpperCase())) {
         errors.push("BUS Number Plate must be in format NB-XXXX (e.g., NB-4565)")
       }
+    }
+
+    if (!newVehicle.deviceId?.trim()) {
+      errors.push("Device ID is required")
     }
 
     if (!newVehicle.model?.trim()) {
@@ -227,11 +223,12 @@ export default function FleetManagement() {
           model: newVehicle.model.trim(),
           year: parseInt(newVehicle.year),
           driverName: newVehicle.driverName?.trim() || undefined,
+          ownerName: newVehicle.ownerName?.trim() || undefined,
           route: newVehicle.route?.trim() || undefined,
           routeId: newVehicle.routeId?.trim() || undefined,
           locationDepot: newVehicle.locationDepot?.trim() || undefined,
-          documentId: newVehicle.documentId?.trim() || undefined,
           deviceId: newVehicle.deviceId?.trim() || undefined,
+          anyDeskId: newVehicle.anyDeskId?.trim() || undefined,
         }),
       })
 
@@ -246,7 +243,7 @@ export default function FleetManagement() {
         description: t("vehicle_added"),
       })
 
-      setNewVehicle({ busNumberPlate: "", documentId: "", deviceId: "", busNumber: "", model: "", year: "", driverName: "", route: "", routeId: "", locationDepot: "" })
+      setNewVehicle({ busNumberPlate: "", deviceId: "", anyDeskId: "", busNumber: "", model: "", year: "", driverName: "", ownerName: "", route: "", routeId: "", locationDepot: "" })
       setShowAddVehicle(false)
       fetchVehicles()
     } catch (error: any) {
@@ -287,7 +284,7 @@ export default function FleetManagement() {
     } catch (error: any) {
       console.error("Error updating vehicle status:", error)
       fetchVehicles(true)
-      
+
       toast({
         title: "Error",
         description: error?.message || "Failed to update vehicle status. Please try again.",
@@ -320,6 +317,10 @@ export default function FleetManagement() {
       if (!busPlatePattern.test(editingVehicle.busNumberPlate.trim().toUpperCase())) {
         errors.push("BUS Number Plate must be in format NB-XXXX (e.g., NB-4565)")
       }
+    }
+
+    if (!editingVehicle.deviceId?.trim()) {
+      errors.push("Device ID is required")
     }
 
     if (!editingVehicle.model?.trim()) {
@@ -357,11 +358,12 @@ export default function FleetManagement() {
           model: editingVehicle.model.trim(),
           year: editingVehicle.year,
           driverName: editingVehicle.driverName?.trim() || undefined,
+          ownerName: editingVehicle.ownerName?.trim() || undefined,
           route: editingVehicle.route?.trim() || undefined,
           routeId: editingVehicle.routeId?.trim() || undefined,
           locationDepot: editingVehicle.locationDepot?.trim() || undefined,
-          documentId: editingVehicle.documentId?.trim() || undefined,
           deviceId: editingVehicle.deviceId?.trim() || undefined,
+          anyDeskId: editingVehicle.anyDeskId?.trim() || undefined,
           status: editingVehicle.status,
         }),
       })
@@ -476,14 +478,27 @@ export default function FleetManagement() {
                 <p className="text-xs text-muted-foreground mt-1">Format: NB-XXXX (e.g., NB-4565)</p>
               </div>
               <div>
-                <Label htmlFor="deviceId">{t("device_id")}</Label>
+                <Label htmlFor="deviceId">
+                  {t("device_id")} <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="deviceId"
                   value={newVehicle.deviceId}
                   onChange={(e) => setNewVehicle({ ...newVehicle, deviceId: e.target.value.toUpperCase() })}
                   placeholder="e.g., DEV-001"
+                  required
                 />
-                <p className="text-xs text-muted-foreground mt-1">GPS/Tracking device ID (optional)</p>
+                <p className="text-xs text-muted-foreground mt-1">GPS/Tracking device ID</p>
+              </div>
+              <div>
+                <Label htmlFor="anyDeskId">AnyDesk ID</Label>
+                <Input
+                  id="anyDeskId"
+                  value={newVehicle.anyDeskId}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, anyDeskId: e.target.value })}
+                  placeholder="e.g., 123 456 789"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Remote access ID (optional)</p>
               </div>
               <div>
                 <Label htmlFor="model">{t("vehicle_model")}</Label>
@@ -492,6 +507,15 @@ export default function FleetManagement() {
                   value={newVehicle.model}
                   onChange={(e) => setNewVehicle({ ...newVehicle, model: e.target.value })}
                   placeholder="e.g., Tata LP 1618"
+                />
+              </div>
+              <div>
+                <Label htmlFor="ownerName">Bus Owner Name</Label>
+                <Input
+                  id="ownerName"
+                  value={newVehicle.ownerName}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, ownerName: e.target.value })}
+                  placeholder="e.g., Sudesh Priyantha"
                 />
               </div>
               <div>
@@ -532,7 +556,7 @@ export default function FleetManagement() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="locationDepot">Location (Depot)</Label>
+                <Label htmlFor="locationDepot">Location</Label>
                 <Input
                   id="locationDepot"
                   value={newVehicle.locationDepot || ""}
@@ -600,178 +624,191 @@ export default function FleetManagement() {
               </div>
             </div>
           </CardHeader>
-            <CardContent>
-              {/* Filters */}
-              <div className="flex gap-4 mb-6">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground/60 h-4 w-4" />
-                    <Input
-                      placeholder={t("search_fleet")}
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
+          <CardContent>
+            {/* Filters */}
+            <div className="flex gap-4 mb-6">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground/60 h-4 w-4" />
+                  <Input
+                    placeholder={t("search_fleet")}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder={t("status")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t("all_status")}</SelectItem>
-                    <SelectItem value="active">{t("active")}</SelectItem>
-                    <SelectItem value="inactive">{t("inactive")}</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder={t("status")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("all_status")}</SelectItem>
+                  <SelectItem value="active">{t("active")}</SelectItem>
+                  <SelectItem value="inactive">{t("inactive")}</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={() => fetchVehicles(true)} className="px-6">
+                Search
+              </Button>
+            </div>
 
-              {/* Vehicle Grid */}
-              {loading ? (
-                <div className="p-12 text-center">
-                  <Loader2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-spin" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">{t("loading")}</h3>
-                  <p className="text-muted-foreground">{t("wait_fetching")}</p>
-                </div>
-              ) : filteredVehicles.length === 0 ? (
-                <div className="p-12 text-center">
-                  <Bus className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">{t("no_vehicles_found")}</h3>
-                  <p className="text-muted-foreground">{searchTerm || statusFilter !== "all" ? t("no_vehicles_match") : t("get_started_vehicle")}</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {filteredVehicles.map((vehicle) => (
-                    <Card key={vehicle.id || `vehicle-${vehicle.busNumberPlate || vehicle.busNumber}`} className="hover:shadow-lg transition-shadow overflow-visible">
-                      <CardHeader>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <CardTitle className="text-lg">{vehicle.busNumberPlate || vehicle.busNumber || "N/A"}</CardTitle>
-                            <CardDescription className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
-                                <span className="flex items-center gap-1">
-                                  <FileText className="h-3 w-3" />
-                                  {vehicle.documentId || "N/A"}
-                                </span>
-                                {vehicle.deviceId && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="flex items-center gap-1 text-primary">
-                                      <Gauge className="h-3 w-3" />
-                                      {vehicle.deviceId}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                              <span>
-                                {vehicle.model} ({vehicle.year})
-                              </span>
-                            </CardDescription>
-                          </div>
-                          <div className="flex gap-2">
-                            <Badge variant={getStatusColor(vehicle.status)}>{vehicle.status.toUpperCase()}</Badge>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          {/* Driver and Route Info */}
-                          <div className="grid grid-cols-2 gap-4 text-sm">
+            {/* Vehicle Grid */}
+            {loading ? (
+              <div className="p-12 text-center">
+                <Loader2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-spin" />
+                <h3 className="text-lg font-medium text-foreground mb-2">{t("loading")}</h3>
+                <p className="text-muted-foreground">{t("wait_fetching")}</p>
+              </div>
+            ) : filteredVehicles.length === 0 ? (
+              <div className="p-12 text-center">
+                <Bus className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">{t("no_vehicles_found")}</h3>
+                <p className="text-muted-foreground">{searchTerm || statusFilter !== "all" ? t("no_vehicles_match") : t("get_started_vehicle")}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {filteredVehicles.map((vehicle) => (
+                  <Card key={vehicle.id || `vehicle-${vehicle.busNumberPlate || vehicle.busNumber}`} className="hover:shadow-lg transition-shadow overflow-visible">
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle className="text-lg">{vehicle.busNumberPlate || vehicle.busNumber || "N/A"}</CardTitle>
+                          <CardDescription className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <span>{vehicle.driverName || t("no_driver_assigned")}</span>
+                              {vehicle.deviceId && (
+                                <span className="flex items-center gap-1 text-primary">
+                                  <Gauge className="h-3 w-3" />
+                                  {vehicle.deviceId}
+                                </span>
+                              )}
+                              {vehicle.deviceId && vehicle.anyDeskId && <span>•</span>}
+                              {vehicle.anyDeskId && (
+                                <span className="flex items-center gap-1 text-blue-500">
+                                  AnyDesk: {vehicle.anyDeskId}
+                                </span>
+                              )}
                             </div>
-                            <div className="flex items-start gap-2">
-                              <Route className="h-4 w-4 text-muted-foreground mt-0.5" />
-                              <div className="flex flex-col min-w-0">
-                                <span className="truncate">{vehicle.route || t("no_route_assigned")}</span>
-                                {vehicle.route && (() => {
-                                  const r = routes.find(rt => 
-                                    (vehicle.routeId && rt.id === vehicle.routeId) || 
-                                    (!vehicle.routeId && rt.name === vehicle.route)
+                            <span>
+                              {vehicle.model} ({vehicle.year})
+                            </span>
+                          </CardDescription>
+                        </div>
+                        <div className="flex gap-2">
+                          <Badge variant={getStatusColor(vehicle.status)}>{vehicle.status.toUpperCase()}</Badge>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {/* Owner and Route Info */}
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span className="truncate">{vehicle.ownerName || "No owner assigned"}</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <Route className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <div className="flex flex-col min-w-0">
+                              {vehicle.route ? (() => {
+                                const r = routes.find(rt =>
+                                  (vehicle.routeId && rt.id === vehicle.routeId) ||
+                                  (!vehicle.routeId && rt.name === vehicle.route)
+                                );
+                                if (r && r.startPoint && r.endPoint) {
+                                  return (
+                                    <>
+                                      <div className="flex items-baseline gap-1.5 flex-wrap">
+                                        <span className="text-lg font-bold truncate">
+                                          {r.startPoint.replace(/ Bus Stop/i, "")} – {r.endPoint.replace(/ Bus Stop/i, "")}
+                                        </span>
+                                        <span className="text-sm text-muted-foreground">({vehicle.route})</span>
+                                      </div>
+                                      {r.busNumber && (
+                                        <span className="text-xs text-muted-foreground truncate mt-0.5">
+                                          Route No: {r.busNumber}
+                                        </span>
+                                      )}
+                                    </>
                                   );
-                                  if (r && r.startPoint && r.endPoint) {
-                                    return (
-                                      <span className="text-xs text-muted-foreground truncate mt-0.5">
-                                        {r.startPoint.replace(/ Bus Stop/i, "")} to {r.endPoint.replace(/ Bus Stop/i, "")}
-                                      </span>
-                                    );
-                                  }
-                                  return null;
-                                })()}
-                              </div>
+                                }
+                                return (
+                                  <span className="text-lg font-bold truncate">{vehicle.route}</span>
+                                );
+                              })() : <span className="truncate text-muted-foreground">{t("no_route_assigned")}</span>}
                             </div>
-                          </div>
-
-                          {/* Location */}
-                          <div className="flex items-center gap-2 text-sm">
-                            <MapPin className="h-4 w-4 text-muted-foreground" />
-                            <span>{vehicle.locationDepot ? `${vehicle.locationDepot} Depot` : (vehicle.location?.address || "Colombo Depot")}</span>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="flex gap-2 pt-2 flex-wrap items-center">
-                            <Button size="sm" variant="outline" onClick={() => setSelectedVehicle(vehicle)} className="flex-shrink-0">
-                              <Eye className="h-4 w-4 mr-1" />
-                              {t("details")}
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => handleEditVehicle(vehicle)} className="flex-shrink-0">
-                              <Edit className="h-4 w-4 mr-1" />
-                              {t("edit")}
-                            </Button>
-                            <Select
-                               value={vehicle.status}
-                               disabled={updatingStatusIds.has(vehicle.id)}
-                               onValueChange={(value) => {
-                                 if (vehicle.id) {
-                                   updateVehicleStatus(vehicle.id, value)
-                                 }
-                               }}
-                             >
-                               <SelectTrigger className={`h-8 text-xs w-[120px] flex-shrink-0 ${updatingStatusIds.has(vehicle.id) ? "opacity-50 cursor-not-allowed" : ""}`}>
-                                 <div className="flex items-center gap-2">
-                                   {updatingStatusIds.has(vehicle.id) ? (
-                                     <Loader2 className="h-3 w-3 animate-spin" />
-                                   ) : (
-                                     <div className={`h-2 w-2 rounded-full ${vehicle.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                                   )}
-                                   <SelectValue />
-                                 </div>
-                               </SelectTrigger>
-                               <SelectContent>
-                                 <SelectItem value="active">
-                                   <div className="flex items-center gap-2">
-                                     <div className="h-2 w-2 rounded-full bg-green-500" />
-                                     {t("active")}
-                                   </div>
-                                 </SelectItem>
-                                 <SelectItem value="inactive">
-                                   <div className="flex items-center gap-2">
-                                     <div className="h-2 w-2 rounded-full bg-gray-400" />
-                                     {t("inactive")}
-                                   </div>
-                                 </SelectItem>
-                               </SelectContent>
-                             </Select>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDeleteClick(vehicle)}
-                              disabled={!vehicle.id || isDeleting}
-                              className="bg-red-600 hover:bg-red-700 text-white flex-shrink-0"
-                            >
-                              <Trash2 className="h-4 w-4 mr-1" />
-                              {t("delete")}
-                            </Button>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
+                        {/* Location */}
+                        <div className="flex items-center gap-2 text-sm">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
+                          <span>{vehicle.locationDepot || vehicle.location?.address || "Colombo"}</span>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2 pt-2 flex-wrap items-center">
+                          <Button size="sm" variant="outline" onClick={() => setSelectedVehicle(vehicle)} className="flex-shrink-0">
+                            <Eye className="h-4 w-4 mr-1" />
+                            {t("details")}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleEditVehicle(vehicle)} className="flex-shrink-0">
+                            <Edit className="h-4 w-4 mr-1" />
+                            {t("edit")}
+                          </Button>
+                          <Select
+                            value={vehicle.status}
+                            disabled={updatingStatusIds.has(vehicle.id)}
+                            onValueChange={(value) => {
+                              if (vehicle.id) {
+                                updateVehicleStatus(vehicle.id, value)
+                              }
+                            }}
+                          >
+                            <SelectTrigger className={`h-8 text-xs w-[120px] flex-shrink-0 ${updatingStatusIds.has(vehicle.id) ? "opacity-50 cursor-not-allowed" : ""}`}>
+                              <div className="flex items-center gap-2">
+                                {updatingStatusIds.has(vehicle.id) ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <div className={`h-2 w-2 rounded-full ${vehicle.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                )}
+                                <SelectValue />
+                              </div>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">
+                                <div className="flex items-center gap-2">
+                                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                                  {t("active")}
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="inactive">
+                                <div className="flex items-center gap-2">
+                                  <div className="h-2 w-2 rounded-full bg-gray-400" />
+                                  {t("inactive")}
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDeleteClick(vehicle)}
+                            disabled={!vehicle.id || isDeleting}
+                            className="bg-red-600 hover:bg-red-700 text-white flex-shrink-0"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            {t("delete")}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Vehicle Details Modal */}
@@ -824,14 +861,27 @@ export default function FleetManagement() {
                 <p className="text-xs text-muted-foreground mt-1">Format: NB-XXXX (e.g., NB-4565)</p>
               </div>
               <div>
-                <Label htmlFor="edit-deviceId">Device ID</Label>
+                <Label htmlFor="edit-deviceId">
+                  Device ID <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="edit-deviceId"
                   value={editingVehicle.deviceId || ""}
                   onChange={(e) => setEditingVehicle({ ...editingVehicle, deviceId: e.target.value.toUpperCase() })}
                   placeholder="e.g., DEV-001"
+                  required
                 />
-                <p className="text-xs text-muted-foreground mt-1">GPS/Tracking device ID (optional)</p>
+                <p className="text-xs text-muted-foreground mt-1">GPS/Tracking device ID</p>
+              </div>
+              <div>
+                <Label htmlFor="edit-anyDeskId">AnyDesk ID</Label>
+                <Input
+                  id="edit-anyDeskId"
+                  value={editingVehicle.anyDeskId || ""}
+                  onChange={(e) => setEditingVehicle({ ...editingVehicle, anyDeskId: e.target.value })}
+                  placeholder="e.g., 123 456 789"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Remote access ID (optional)</p>
               </div>
               <div>
                 <Label htmlFor="edit-model">Vehicle Model *</Label>
@@ -841,6 +891,15 @@ export default function FleetManagement() {
                   onChange={(e) => setEditingVehicle({ ...editingVehicle, model: e.target.value })}
                   placeholder="e.g., Tata LP 1618"
                   required
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-ownerName">Bus Owner Name</Label>
+                <Input
+                  id="edit-ownerName"
+                  value={editingVehicle.ownerName || ""}
+                  onChange={(e) => setEditingVehicle({ ...editingVehicle, ownerName: e.target.value })}
+                  placeholder="e.g., Sudesh Priyantha"
                 />
               </div>
               <div>
@@ -882,12 +941,12 @@ export default function FleetManagement() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="edit-locationDepot">Location (Depot)</Label>
+                <Label htmlFor="edit-locationDepot">Location</Label>
                 <Input
                   id="edit-locationDepot"
                   value={editingVehicle.locationDepot || ""}
                   onChange={(e) => setEditingVehicle({ ...editingVehicle, locationDepot: e.target.value })}
-                  placeholder="e.g., Colombo Depot"
+                  placeholder="e.g., Colombo"
                 />
               </div>
               <div>
@@ -938,7 +997,7 @@ export default function FleetManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Vehicle</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{vehicleToDelete?.busNumberPlate || vehicleToDelete?.busNumber || vehicleToDelete?.documentId || vehicleToDelete?.id}</strong>? This action cannot be undone.
+              Are you sure you want to delete <strong>{vehicleToDelete?.busNumberPlate || vehicleToDelete?.busNumber || vehicleToDelete?.id}</strong>? This action cannot be undone.
               {vehicleToDelete?.status === "active" && (
                 <span className="block mt-2 text-amber-600 font-medium">
                   Warning: This vehicle is currently active. Make sure to update its status first.

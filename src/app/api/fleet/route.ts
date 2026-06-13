@@ -35,18 +35,19 @@ const createVehicleSchema = z.object({
     .max(new Date().getFullYear() + 1, `Year cannot be greater than ${new Date().getFullYear() + 1}`),
   driverId: z.string().optional(),
   driverName: z.string().max(100, "Driver name must be 100 characters or less").optional(),
+  ownerName: z.string().max(100, "Owner name must be 100 characters or less").optional(),
   route: z.string().max(200, "Route must be 200 characters or less").optional(),
   routeId: z.string().optional(),
   locationDepot: z.string().optional(),
-  documentId: z
-    .preprocess(
-      (val) => (val === "" || val === null || val === undefined ? undefined : val),
-      z.string().max(50, "Document ID must be 50 characters or less").optional()
-    ),
+
   deviceId: z
+    .string()
+    .min(1, "Device ID is required")
+    .max(50, "Device ID must be 50 characters or less"),
+  anyDeskId: z
     .preprocess(
       (val) => (val === "" || val === null || val === undefined ? undefined : val),
-      z.string().max(50, "Device ID must be 50 characters or less").optional()
+      z.string().max(50, "AnyDesk ID must be 50 characters or less").optional()
     ),
   location: z
     .object({
