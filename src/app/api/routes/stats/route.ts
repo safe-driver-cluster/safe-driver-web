@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { routeService } from "@/lib/route-service"
 
+export const dynamic = "force-dynamic"
+
 // GET /api/routes/stats - Get route statistics
 export async function GET(request: NextRequest) {
   try {

@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { driverService } from "@/lib/driver-service"
 import { initializeFirebase } from "@/lib/firebase/config"
 
+export const dynamic = "force-dynamic"
+
 // Initialize Firebase on server side
 try {
   initializeFirebase()

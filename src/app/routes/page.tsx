@@ -391,15 +391,7 @@ export default function RouteMonitoring() {
     fetchVehicles()
   }, [])
 
-  // Refetch when filters change
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchRoutes()
-    }, 300) // Debounce search
 
-    return () => clearTimeout(timeoutId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, statusFilter])
 
   const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
 
@@ -470,6 +462,7 @@ export default function RouteMonitoring() {
         ]
       });
       fetchRoutes();
+      fetchStats();
       if (selectedRoute && editingRouteId === selectedRoute.id) {
          setSelectedRoute(null);
       }
@@ -492,6 +485,7 @@ export default function RouteMonitoring() {
       if (!response.ok) throw new Error("Failed to delete route");
       toast({ title: "Success", description: "Route deleted successfully!" });
       fetchRoutes();
+      fetchStats();
       if (selectedRoute?.id === routeToDelete) setSelectedRoute(null);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -681,6 +675,9 @@ export default function RouteMonitoring() {
                 <SelectItem value="maintenance">{t("route_maintenance")}</SelectItem>
               </SelectContent>
             </Select>
+            <Button onClick={fetchRoutes} className="px-6">
+              Search
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -709,19 +706,17 @@ export default function RouteMonitoring() {
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle className="text-lg">{route.name}
-                      {route.busNumber && <span className="text-sm font-normal text-muted-foreground ml-2">({route.startPoint.replace(/ Bus Stop/i, "")} – {route.endPoint.replace(/ Bus Stop/i, "")})</span>}
+                    <CardTitle className="text-lg flex items-baseline gap-1.5 flex-wrap">
+                      <span className="font-bold truncate">
+                        {route.startPoint.replace(/ Bus Stop/i, "")} – {route.endPoint.replace(/ Bus Stop/i, "")}
+                      </span>
+                      <span className="text-sm font-normal text-muted-foreground">({route.name})</span>
                     </CardTitle>
-                    <CardDescription className="flex flex-col gap-1">
-                      {!route.busNumber && (
-                        <span className="flex items-center gap-1">
-                          {route.startPoint.replace(/ Bus Stop/i, "")} → {route.endPoint.replace(/ Bus Stop/i, "")}
-                        </span>
-                      )}
-                      {route.busNumber && (
+                    {route.busNumber && (
+                      <CardDescription className="flex flex-col gap-1 mt-1">
                         <span>Route No: {route.busNumber}</span>
-                      )}
-                    </CardDescription>
+                      </CardDescription>
+                    )}
                   </div>
                   <Badge variant={route.status === "active" ? "success" : "secondary"}>
                     {t(route.status as any)}
@@ -780,13 +775,6 @@ export default function RouteMonitoring() {
                                 <div className="col-span-2 bg-emerald-50 dark:bg-emerald-950/20 p-4 rounded-lg border border-emerald-100 dark:border-emerald-900/30">
                                   <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase mb-1">Status</p>
                                   <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">Active</p>
-                                </div>
-                                <div className="col-span-2 bg-muted/50 p-4 rounded-lg border border-border">
-                                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Current Location</p>
-                                  <div className="flex items-center gap-2">
-                                    <MapPin className="h-4 w-4 text-rose-500" />
-                                    <span className="font-medium text-foreground">En route to next stop</span>
-                                  </div>
                                 </div>
                               </div>
                             </DialogContent>

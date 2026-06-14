@@ -133,6 +133,8 @@ export const fleetService = {
         },
         driverId: input.driverId,
         driverName: input.driverName,
+        ownerName: input.ownerName,
+        anyDeskId: input.anyDeskId,
         route: input.route || "",
         routeId: input.routeId,
         locationDepot: input.locationDepot || "Colombo",

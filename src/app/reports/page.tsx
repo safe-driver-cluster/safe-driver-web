@@ -390,10 +390,8 @@ export default function ReportsPage() {
           <CardContent className="space-y-5">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">{t("report_format") || "Report Format"}</label>
-              <div className="grid grid-cols-3 gap-2">
-                <Button variant="outline" className="bg-primary/10 border-primary text-primary text-xs">PDF</Button>
-                <Button variant="outline" className="opacity-40 cursor-not-allowed text-xs" disabled>XLS</Button>
-                <Button variant="outline" className="opacity-40 cursor-not-allowed text-xs" disabled>CSV</Button>
+              <div>
+                <Button variant="outline" className="bg-primary/10 border-primary text-primary text-xs w-32">PDF</Button>
               </div>
             </div>
 

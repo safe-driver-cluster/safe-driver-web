@@ -27,6 +27,7 @@ export interface Alert {
   severity: "high" | "medium" | "low"
   driverName: string
   driverId: string
+  driverPhone?: string
   busNumber: string
   route: string
   location: string
@@ -237,20 +238,24 @@ const transformAlert = (
   // If no driver in the alert document, look up via the matched vehicle's driver assignment
   let vehicleDriverId = ""
   let vehicleDriverName = ""
+  let vehicleDriverPhone = ""
   if (!dbDriverId && matchedVehicle) {
     if (matchedVehicle.driverId) {
       vehicleDriverId = matchedVehicle.driverId
       const d = firestoreDrivers.find(d => d.id === matchedVehicle.driverId)
       vehicleDriverName = d?.name || matchedVehicle.driverName || ""
+      vehicleDriverPhone = d?.phone || ""
     } else if (matchedVehicle.driver) {
       vehicleDriverName = matchedVehicle.driver
       const d = firestoreDrivers.find(d => d.name?.toLowerCase() === matchedVehicle.driver.toLowerCase())
       vehicleDriverId = d?.id || ""
+      vehicleDriverPhone = d?.phone || ""
     }
   }
 
   const driverId = matchedDriver?.id || dbDriverId || vehicleDriverId || deviceInfo?.driverId || `DRV-${deviceId.substring(0, 8)}`
   const driverName = matchedDriver?.name || vehicleDriverName || deviceInfo?.driverName || matchedVehicle?.driver || `Driver ${deviceId.substring(0, 8)}`
+  const driverPhone = matchedDriver?.phone || vehicleDriverPhone || ""
   
   const rawRoute = deviceInfo?.route || matchedVehicle?.route || "Unknown Route"
   
@@ -306,6 +311,7 @@ const transformAlert = (
     severity,
     driverName,
     driverId,
+    driverPhone,
     busNumber,
     route,
     location,
@@ -497,7 +503,9 @@ export function useLiveAlerts() {
       return
     }
 
-    setIsLoading(true)
+    if (rawAlerts.length === 0) {
+      setIsLoading(true)
+    }
     setError(null)
 
     try {

@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { routeService } from "@/lib/route-service"
 import { z } from "zod"
 
+export const dynamic = "force-dynamic"
+
 const routeStopSchema = z.object({
   name: z.string().min(1),
   time: z.string(),

@@ -38,7 +38,7 @@ export interface Feedback {
   response?: string | null
   routeId?: string | null
   routeNumber?: string | null
-  status?: "submitted" | "acknowledged" | "resolved" | "closed"
+  status?: "submitted" | "acknowledged" | "resolved" | "closed" | "approved" | "rejected"
   submittedAt?: string
   tags?: any[]
   title?: string
@@ -157,9 +157,9 @@ export const feedbackService = {
         ...existing,
         status,
       } as Feedback
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating feedback status:", error)
-      throw new Error("Failed to update feedback status")
+      throw new Error(`Failed to update: ${error?.message || "Unknown error"}`)
     }
   },
 
