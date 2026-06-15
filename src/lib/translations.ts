@@ -241,7 +241,7 @@ export const translations = {
         "generating_report": "Generating Report...",
         "quick_reports": "Quick Reports",
         "quick_reports_desc": "Generate common reports instantly",
-        "todays_summary": "Today's Summary with Charts",
+        "todays_summary": "Summary with Charts",
         "driver_performance_charts": "Driver Performance Charts",
         "incident_analysis_visuals": "Incident Analysis Visuals",
         "previously_generated": "Previously generated reports available for download",
