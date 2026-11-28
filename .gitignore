@@ -26,4 +26,7 @@ yarn-error.log*
 next-env.d.ts
 
 package-lock.json.env
-config.bat
+.env
+.env.*
+.env.local
+.env.production
